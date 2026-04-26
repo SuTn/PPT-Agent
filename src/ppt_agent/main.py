@@ -9,10 +9,11 @@ from ppt_agent.config import settings
 
 def _print_new_messages(result: dict, seen: set) -> set:
     for msg in result.get("messages", []):
-        msg_id = id(msg)
-        if msg_id in seen:
+        msg_id = getattr(msg, "id", None)
+        if msg_id and msg_id in seen:
             continue
-        seen.add(msg_id)
+        if msg_id:
+            seen.add(msg_id)
 
         if msg.type == "ai":
             if hasattr(msg, "tool_calls") and msg.tool_calls:
@@ -27,7 +28,7 @@ def _print_new_messages(result: dict, seen: set) -> set:
             print(f"\n[TOOL 结果] {msg.name}: {content}")
 
 
-def cli():
+async def cli():
     agent = create_ppt_agent()
     thread_id = "cli-session"
     config = {"configurable": {"thread_id": thread_id}}
@@ -50,13 +51,13 @@ def cli():
             break
 
         try:
-            result = asyncio.run(agent.ainvoke(
+            result = await agent.ainvoke(
                 {"messages": [HumanMessage(content=user_input)]},
                 config,
-            ))
+            )
             _print_new_messages(result, seen_ids)
-        except GraphInterrupt as e:
-            print(f"\n[中断] {e}")
+        except GraphInterrupt:
+            print("\n[等待确认] 输入 'ok' 继续，或输入修改意见：")
             try:
                 feedback = input("你: ").strip()
             except (EOFError, KeyboardInterrupt):
@@ -64,15 +65,19 @@ def cli():
             if feedback == "/quit":
                 break
             try:
-                result = asyncio.run(agent.ainvoke(Command(resume=feedback), config))
+                result = await agent.ainvoke(Command(resume=feedback), config)
                 _print_new_messages(result, seen_ids)
-            except Exception as e2:
-                print(f"\n[错误] {e2}\n")
+            except Exception as e:
+                print(f"\n[错误] {e}\n")
         except KeyboardInterrupt:
             print("\n[已中断]")
         except Exception as e:
             print(f"\n[错误] {e}\n")
 
 
+def main():
+    asyncio.run(cli())
+
+
 if __name__ == "__main__":
-    cli()
+    main()

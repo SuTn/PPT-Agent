@@ -1,5 +1,8 @@
 """Smoke tests for non-LLM components."""
 
+import pytest
+from pydantic import ValidationError
+
 
 def test_template_registry():
     from ppt_agent.templates.registry import list_all_templates, load_template
@@ -55,9 +58,82 @@ def test_pptx_builder():
     import tempfile
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # create a dummy 1x1 PNG
-        from pptx import Presentation
         dummy_pptx = Path(tmpdir) / "test.pptx"
-        # just test that build_pptx can be called with empty list
         build_pptx([], dummy_pptx)
         assert dummy_pptx.exists()
+
+
+# --- Outline validation tests ---
+
+
+def test_outline_valid():
+    from ppt_agent.agent.state import Outline
+
+    outline = Outline.model_validate({
+        "title": "Test",
+        "slides": [
+            {"page": 1, "layout": "cover", "title": "封面", "key_points": []},
+            {"page": 2, "layout": "content", "title": "内容", "key_points": ["A", "B"]},
+        ],
+    })
+    assert outline.title == "Test"
+    assert len(outline.slides) == 2
+
+
+def test_outline_missing_title():
+    from ppt_agent.agent.state import Outline
+
+    with pytest.raises(ValidationError):
+        Outline.model_validate({"slides": []})
+
+
+def test_outline_empty_slides():
+    from ppt_agent.agent.state import Outline
+
+    with pytest.raises(ValidationError, match="不能为空"):
+        Outline.model_validate({"title": "T", "slides": []})
+
+
+def test_outline_invalid_layout():
+    from ppt_agent.agent.state import Outline
+
+    with pytest.raises(ValidationError):
+        Outline.model_validate({
+            "title": "T",
+            "slides": [{"page": 1, "layout": "invalid", "title": "X", "key_points": []}],
+        })
+
+
+def test_outline_missing_fields():
+    from ppt_agent.agent.state import Outline
+
+    with pytest.raises(ValidationError):
+        Outline.model_validate({
+            "title": "T",
+            "slides": [{"page": 1}],
+        })
+
+
+def test_outline_key_points_default():
+    from ppt_agent.agent.state import Outline
+
+    outline = Outline.model_validate({
+        "title": "T",
+        "slides": [{"page": 1, "layout": "cover", "title": "X"}],
+    })
+    assert outline.slides[0].key_points == []
+
+
+def test_session_state():
+    from ppt_agent.agent.state import SessionState, PipelineStep
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from pathlib import Path
+        path = Path(tmpdir) / "session.json"
+
+        state = SessionState()
+        state.save(path)
+
+        loaded = SessionState.load(path)
+        assert loaded.step == PipelineStep.IDLE

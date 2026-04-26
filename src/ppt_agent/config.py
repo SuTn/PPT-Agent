@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     model: str = "anthropic:claude-sonnet-4-6"
     output_dir: Path = Path("./output")
 
+    # Concurrency limits
+    slide_concurrency: int = 3
+    render_concurrency: int = 5
+
     # VLLM config
     vllm_base_url: str = ""
     vllm_api_key: str = "empty"

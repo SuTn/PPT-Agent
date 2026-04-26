@@ -7,7 +7,6 @@
 ### 1. 安装依赖
 
 ```bash
-# 需要 Python 3.13+ 和 uv
 uv sync
 uv run playwright install chromium
 ```
@@ -47,7 +46,7 @@ uv run ppt-agent
 ## 工作流程
 
 ```
-对话确认主题 → 生成大纲 → 选择模板 → 子代理生成幻灯片 → 导出 PPTX
+对话确认主题 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
 ```
 
 每步完成后会展示结果，用户确认或提出修改后再继续。
@@ -69,6 +68,13 @@ uv run ppt-agent
 - `creative` — 创意设计（渐变 + 不对称布局）
 - `report` — 数据报告（灰白 + 图表元素）
 
+## 并发配置
+
+| 环境变量 | 默认值 | 说明 |
+|--------|--------|------|
+| `PPT_AGENT_SLIDE_CONCURRENCY` | 3 | 幻灯片 LLM 并发数 |
+| `PPT_AGENT_RENDER_CONCURRENCY` | 5 | Playwright 截图并发数 |
+
 ## 测试
 
 ```bash
@@ -77,8 +83,9 @@ uv run pytest tests/ -v
 
 ## 架构
 
-- **主 Agent**：调度工具和子代理，管理对话流程
-- **slide_generator 子代理**：隔离的幻灯片生成上下文，避免主 Agent 上下文膨胀
+- **主 Agent**：调度 5 个 async tool，管理对话流程
+- **并发生成**：`asyncio.gather()` + `Semaphore` 控制幻灯片生成和渲染并发
+- **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
 - **导出管线**：HTML → Playwright 截图(2x) → python-pptx 嵌入
 
 详见 [DESIGN.md](DESIGN.md)。

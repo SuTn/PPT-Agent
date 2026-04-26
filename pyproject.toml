@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ppt-agent = "ppt_agent.main:cli"
+ppt-agent = "ppt_agent.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
