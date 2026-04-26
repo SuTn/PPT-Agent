@@ -1,0 +1,39 @@
+{
+  "name": "创意设计",
+  "description": "大胆鲜艳的创意风格，渐变色彩和不对称布局，适合创意提案、设计展示",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#e53e6b",
+    "secondary": "#ff6b6b",
+    "accent": "#ffd93d",
+    "background": "#fff5f5",
+    "card_bg": "#ffffff",
+    "text": "#2d3436",
+    "text_light": "#636e72",
+    "gradient_1": "linear-gradient(135deg, #e53e6b 0%, #ff6b6b 100%)",
+    "gradient_2": "linear-gradient(135deg, #ffd93d 0%, #ff9ff3 100%)"
+  },
+  "typography": {
+    "title_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "48px",
+    "subtitle_size": "28px",
+    "body_size": "20px",
+    "small_size": "16px",
+    "line_height": "1.6",
+    "title_weight": "900"
+  },
+  "layout": {
+    "margin": "50px 70px",
+    "use_gradient": true,
+    "asymmetric": true
+  },
+  "component_styles": {
+    "cover": "渐变背景（粉红到红），白色超大标题，可使用倾斜或偏移的排版，右下角黄色装饰圆形",
+    "toc": "白色背景，左侧大号渐变编号，目录条目使用粗体，每条间有粉色细线",
+    "content": "白色或浅粉背景，标题使用渐变色文字或带渐变下划线，要点使用自定义图标（用 CSS 绘制的小圆、三角等），可使用不对称布局（左 60% 内容 + 右 40% 装饰区域）",
+    "section": "渐变背景（粉红到红），白色超大居中标题，装饰性几何图形散落",
+    "ending": "浅粉背景，居中大号渐变文字\"Thank You\"，周围有黄色和粉色圆形装饰"
+  }
+}

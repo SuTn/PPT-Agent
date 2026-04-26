@@ -1,0 +1,38 @@
+# Python
+*.pyc
+__pycache__/
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual env
+.venv/
+
+# Environment & secrets
+.env
+.env.local
+
+# Output (generated files)
+output/
+
+# IDE & tools
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test & cache
+.pytest_cache/
+.cache/
+
+# Claude Code
+.claude/
+.mcp.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp scripts (not part of source)
+test_tool_calling.py

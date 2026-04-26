@@ -1,0 +1,39 @@
+{
+  "name": "数据报告",
+  "description": "清晰的数据报告风格，灰白底配图表元素，适合数据分析、年度报告",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#2d3748",
+    "secondary": "#4a5568",
+    "accent": "#3182ce",
+    "accent_2": "#48bb78",
+    "accent_3": "#ed64a6",
+    "background": "#f7fafc",
+    "card_bg": "#ffffff",
+    "text": "#1a202c",
+    "text_light": "#a0aec0",
+    "border": "#e2e8f0"
+  },
+  "typography": {
+    "title_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "40px",
+    "subtitle_size": "24px",
+    "body_size": "20px",
+    "small_size": "16px",
+    "line_height": "1.6"
+  },
+  "layout": {
+    "margin": "55px 75px",
+    "card_shadow": "box-shadow: 0 1px 4px rgba(0,0,0,0.06)",
+    "header_bar": "height: 50px, background: #2d3748"
+  },
+  "component_styles": {
+    "cover": "深灰背景（#2d3748），白色大标题偏左上，右侧可用蓝色装饰条或数据图形元素，底部有日期/作者信息",
+    "toc": "白色背景，顶部深灰标题栏（50px），目录使用两列布局或带页码的列表",
+    "content": "浅灰背景（#f7fafc），内容放在白色卡片中，标题在卡片顶部用深灰色，数据要点可用彩色色块标注（蓝/绿/粉），适合放置图表区域（用 CSS 绘制简单柱状图或进度条）",
+    "section": "深灰背景，白色章节编号（大号）+ 标题，右侧有蓝色装饰元素",
+    "ending": "白色背景，居中总结性文字，底部有深灰色页脚栏"
+  }
+}

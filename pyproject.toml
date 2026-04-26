@@ -1,0 +1,26 @@
+[project]
+name = "ppt-agent"
+version = "0.1.0"
+description = "AI-driven PowerPoint generation through conversational interaction"
+requires-python = ">=3.13"
+dependencies = [
+    "deepagents>=0.5.3",
+    "fastapi>=0.136.1",
+    "langchain-openai>=1.2.1",
+    "playwright>=1.58.0",
+    "pydantic-settings>=2.14.0",
+    "python-pptx>=1.0.2",
+    "zhipuai>=2.1.5.20250825",
+]
+
+[project.scripts]
+ppt-agent = "ppt_agent.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.3.0",
+]

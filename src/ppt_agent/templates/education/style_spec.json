@@ -1,0 +1,37 @@
+{
+  "name": "教育培训",
+  "description": "清新明快的教育培训风格，绿色系配色，适合教学课件、培训材料",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#22543d",
+    "secondary": "#38a169",
+    "accent": "#f6ad55",
+    "background": "#f0fff4",
+    "card_bg": "#ffffff",
+    "text": "#2d3748",
+    "text_light": "#68d391",
+    "border": "#c6f6d5"
+  },
+  "typography": {
+    "title_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "44px",
+    "subtitle_size": "26px",
+    "body_size": "22px",
+    "small_size": "18px",
+    "line_height": "1.8"
+  },
+  "layout": {
+    "margin": "50px 70px",
+    "card_shadow": "box-shadow: 0 2px 8px rgba(0,0,0,0.08)",
+    "rounded": "8px"
+  },
+  "component_styles": {
+    "cover": "浅绿色背景（#f0fff4），左侧有绿色装饰条（宽 8px），标题使用深绿色，右侧可放装饰性书本或灯泡图标（用 CSS 或 emoji）",
+    "toc": "白色卡片背景，左侧绿色装饰条，目录使用绿色编号圆圈 + 章节名",
+    "content": "白色卡片背景，顶部绿色标题区域，内容区域要有充分的行间距，重点内容可以用橙色高亮框标注，要点使用绿色圆点",
+    "section": "深绿色背景（#22543d），白色标题居中，下方有橙色装饰线",
+    "ending": "浅绿色背景，居中\"谢谢！\"，下方绿色装饰性元素"
+  }
+}

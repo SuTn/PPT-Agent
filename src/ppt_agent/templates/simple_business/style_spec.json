@@ -1,0 +1,36 @@
+{
+  "name": "简约商务",
+  "description": "简洁专业的商务风格，蓝白配色，适合企业汇报、商业提案",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#1a365d",
+    "secondary": "#2b6cb0",
+    "accent": "#ed8936",
+    "background": "#ffffff",
+    "text": "#2d3748",
+    "text_light": "#718096",
+    "border": "#e2e8f0"
+  },
+  "typography": {
+    "title_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "44px",
+    "subtitle_size": "28px",
+    "body_size": "20px",
+    "small_size": "16px",
+    "line_height": "1.6"
+  },
+  "layout": {
+    "margin": "60px 80px",
+    "title_bar_height": "6px",
+    "title_bar_color": "#2b6cb0"
+  },
+  "component_styles": {
+    "cover": "深蓝色背景（#1a365d），白色大标题居中，副标题在标题下方 30px，底部有 4px 宽的橙色装饰线（#ed8936）",
+    "toc": "白色背景，左侧标题，右侧目录列表，每个条目前有蓝色圆点标记",
+    "content": "白色背景，顶部蓝色标题栏（6px），标题在栏下方，要点列表使用灰色圆点，左侧可留 4px 蓝色边框装饰",
+    "section": "深蓝色背景（#1a365d），白色居中大号章节标题，下方有简短描述文字",
+    "ending": "白色背景，居中显示\"谢谢\"大标题，下方有联系方式区域"
+  }
+}
