@@ -92,7 +92,10 @@ class SessionState(BaseModel):
     def load(cls, path: Path) -> SessionState:
         if not path.exists():
             return cls()
-        return cls.model_validate_json(path.read_text(encoding="utf-8"))
+        try:
+            return cls.model_validate_json(path.read_text(encoding="utf-8"))
+        except Exception:
+            return cls()
 
 
 class SessionEntry(BaseModel):

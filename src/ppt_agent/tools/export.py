@@ -39,13 +39,29 @@ async def export_pptx(slides_dir: str = "") -> str:
             return png_path
 
     async with browser_context() as browser:
-        pngs = await asyncio.gather(*[_render_one(f) for f in html_files])
+        render_results = await asyncio.gather(
+            *[_render_one(f) for f in html_files],
+            return_exceptions=True,
+        )
 
-    build_pptx(sorted(pngs), pptx_path)
+    pngs = []
+    render_failed = []
+    for i, r in enumerate(render_results):
+        if isinstance(r, Exception):
+            render_failed.append(f"{Path(html_files[i]).name}: {r}")
+        else:
+            pngs.append(r)
+
+    build_failed = build_pptx(sorted(pngs), pptx_path)
 
     # update session state
     state.step = PipelineStep.EXPORTED
     state.pptx_file = str(pptx_path)
     state.save(session_dir / "session.json")
 
-    return f"PPTX 已导出: {pptx_path}"
+    msg = f"PPTX 已导出: {pptx_path}"
+    if render_failed:
+        msg += f"\n\n[警告] {len(render_failed)} 张幻灯片渲染失败:\n" + "\n".join(render_failed)
+    if build_failed:
+        msg += f"\n\n[警告] {len(build_failed)} 张幻灯片嵌入失败（PNG 损坏）"
+    return msg

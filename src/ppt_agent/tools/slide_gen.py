@@ -19,6 +19,11 @@ def _strip_code_fence(text: str) -> str:
     return text.strip()
 
 
+def _is_valid_html(text: str) -> bool:
+    lower = text.lower()
+    return "<html" in lower or "<body" in lower or "<div" in lower
+
+
 async def _generate_one_slide(
     sem: asyncio.Semaphore,
     model,
@@ -71,10 +76,18 @@ async def generate_slides() -> str:
     tasks = [
         _generate_one_slide(sem, model, s, total, style_spec) for s in slides
     ]
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
     generated = []
-    for slide_info, html_content in results:
+    failed = []
+    for i, result in enumerate(results):
+        if isinstance(result, Exception):
+            failed.append(f"第 {slides[i]['page']} 页: {result}")
+            continue
+        slide_info, html_content = result
+        if not html_content or not _is_valid_html(html_content):
+            failed.append(f"第 {slide_info['page']} 页: 生成的 HTML 内容无效")
+            continue
         filename = f"slide_{slide_info['page']:02d}_{slide_info['layout']}.html"
         filepath = slides_dir / filename
         with open(filepath, "w", encoding="utf-8") as f:
@@ -86,4 +99,7 @@ async def generate_slides() -> str:
     state.slides_dir = str(slides_dir)
     state.save(session_dir / "session.json")
 
-    return f"已生成 {len(generated)} 张幻灯片:\n" + "\n".join(generated)
+    msg = f"已生成 {len(generated)} 张幻灯片:\n" + "\n".join(generated)
+    if failed:
+        msg += f"\n\n[警告] {len(failed)} 张幻灯片生成失败:\n" + "\n".join(failed)
+    return msg

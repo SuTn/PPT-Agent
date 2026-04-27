@@ -9,16 +9,39 @@ from pydantic import ValidationError
 from ppt_agent.agent.state import Outline, SessionState, PipelineStep
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
-from ppt_agent.prompts.outline import OUTLINE_PROMPT
+from ppt_agent.prompts.outline import OUTLINE_PROMPT, _materials_section
 
 
 def _extract_json(text: str) -> str:
     match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
     if match:
         return match.group(1).strip()
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        return match.group(0).strip()
+    # Balanced brace matching — find the first '{' and match its closing '}'
+    start = text.find("{")
+    if start == -1:
+        return text.strip()
+    depth = 0
+    in_string = False
+    escape = False
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1].strip()
     return text.strip()
 
 
@@ -29,12 +52,6 @@ def _try_parse_json(text: str) -> dict | None:
         pass
 
     fixed = re.sub(r",\s*([}\]])", r"\1", text)
-    try:
-        return json.loads(fixed)
-    except json.JSONDecodeError:
-        pass
-
-    fixed = text.replace("'", '"')
     try:
         return json.loads(fixed)
     except json.JSONDecodeError:
@@ -54,7 +71,7 @@ def _state_path() -> Path:
 
 
 @tool
-def generate_outline(requirements: str, page_count: int = 10) -> str:
+async def generate_outline(requirements: str, page_count: int = 0, materials: str = "") -> str:
     """根据用户需求生成 PPT 大纲。
 
     在用户确认了演示主题和需求后调用此工具。生成结构化的大纲 JSON，
@@ -62,12 +79,25 @@ def generate_outline(requirements: str, page_count: int = 10) -> str:
 
     Args:
         requirements: 用户的演示需求描述，包含主题、受众、关键内容等。
-        page_count: 期望的幻灯片页数，默认 10 页。
+        page_count: 期望的幻灯片页数。0 表示根据内容复杂度自行决定（默认）。
+        materials: 用户上传的参考材料内容（Markdown 格式）。如果为空，自动从会话目录的 materials.md 读取。
     """
+    # Auto-read materials.md if not provided
+    if not materials:
+        materials_path = get_session_dir() / "materials.md"
+        if materials_path.exists():
+            materials = materials_path.read_text(encoding="utf-8")
+
     model = get_model()
+    if page_count > 0:
+        page_instruction = f"- 总页数控制在 {page_count} 页左右"
+    else:
+        page_instruction = "- 总页数根据内容复杂度自行决定：简单主题 5-8 页，中等主题 8-15 页，复杂主题 15-25 页。确保每页信息量适中，不要为了凑页数而注水。"
+
     base_prompt = OUTLINE_PROMPT.format(
         requirements=requirements,
-        page_count=page_count,
+        page_instruction=page_instruction,
+        materials_section=_materials_section(materials),
     )
 
     last_raw = ""
@@ -75,7 +105,7 @@ def generate_outline(requirements: str, page_count: int = 10) -> str:
     messages = [HumanMessage(content=base_prompt)]
 
     for attempt in range(3):
-        response = model.invoke(messages)
+        response = await model.ainvoke(messages)
         last_raw = _extract_json(response.content)
         raw_dict = _try_parse_json(last_raw)
 

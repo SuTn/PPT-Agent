@@ -9,6 +9,7 @@ from ppt_agent.tools.outline import generate_outline
 from ppt_agent.tools.slide_gen import generate_slides
 from ppt_agent.tools.template import list_templates, select_template
 from ppt_agent.tools.export import export_pptx
+from ppt_agent.tools.upload import upload_and_parse
 
 
 def create_ppt_agent():
@@ -21,6 +22,7 @@ def create_ppt_agent():
             list_templates,
             generate_slides,
             export_pptx,
+            upload_and_parse,
         ],
         checkpointer=MemorySaver(),
         backend=FilesystemBackend(root_dir=str(settings.output_dir)),

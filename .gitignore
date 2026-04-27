@@ -25,6 +25,7 @@ output/
 # Test & cache
 .pytest_cache/
 .cache/
+raw/
 
 # Claude Code
 .claude/

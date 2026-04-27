@@ -206,3 +206,83 @@ def test_session_index():
         updated = [e for e in entries if e.session_id == "s1"][0]
         assert updated.title == "Updated PPT 1"
         assert updated.step == PipelineStep.EXPORTED
+
+
+# --- Upload & parse tests ---
+
+
+def test_upload_nonexistent_file():
+    from ppt_agent.tools.upload import upload_and_parse
+
+    result = upload_and_parse.invoke({"file_path": "/nonexistent/file.txt"})
+    assert "不存在" in result
+
+
+def test_upload_empty_file(tmp_path):
+    from ppt_agent.tools.upload import upload_and_parse
+
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("")
+
+    result = upload_and_parse.invoke({"file_path": str(empty_file)})
+    assert "为空" in result
+
+
+def test_upload_text_file(tmp_path):
+    import os
+    from ppt_agent.tools.upload import upload_and_parse, MAX_FILE_SIZE
+
+    # Test file size limit
+    big_file = tmp_path / "big.txt"
+    big_file.write_bytes(b"x" * (MAX_FILE_SIZE + 1))
+    result = upload_and_parse.invoke({"file_path": str(big_file)})
+    assert "过大" in result
+
+    # Test normal text file
+    text_file = tmp_path / "notes.txt"
+    text_file.write_text("This is some test content for the PPT.\nKey point: AI is growing fast.", encoding="utf-8")
+    result = upload_and_parse.invoke({"file_path": str(text_file)})
+    assert "已解析" in result
+    assert "notes.txt" in result
+
+
+def test_upload_append_multiple(tmp_path):
+    from ppt_agent.tools.upload import upload_and_parse
+
+    file1 = tmp_path / "doc1.txt"
+    file1.write_text("Content from document one.", encoding="utf-8")
+    result1 = upload_and_parse.invoke({"file_path": str(file1)})
+    assert "已解析" in result1
+
+    file2 = tmp_path / "doc2.txt"
+    file2.write_text("Content from document two.", encoding="utf-8")
+    result2 = upload_and_parse.invoke({"file_path": str(file2)})
+    assert "已解析" in result2
+    assert "doc2.txt" in result2
+
+    # Verify materials.md contains both
+    materials = tmp_path.glob("**/materials.md")
+    # The session dir may vary, find it
+    for m in materials:
+        content = m.read_text(encoding="utf-8")
+        assert "document one" in content
+        assert "document two" in content
+        break
+
+
+def test_materials_section_empty():
+    from ppt_agent.prompts.outline import _materials_section
+
+    result = _materials_section("")
+    assert result == ""
+
+    result = _materials_section("   ")
+    assert result == ""
+
+
+def test_materials_section_with_content():
+    from ppt_agent.prompts.outline import _materials_section
+
+    result = _materials_section("Some reference material here.")
+    assert "参考材料" in result
+    assert "Some reference material here." in result

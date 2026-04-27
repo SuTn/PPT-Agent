@@ -20,8 +20,9 @@
 
 | 阶段 | 实现方式 | 输入 | 输出 | LLM 调用 |
 |------|----------|------|------|----------|
-| **需求讨论** | 主 Agent 对话 | 用户消息 | 确认的主题/页数/风格/受众/核心信息 | 0 次（纯对话） |
-| **大纲生成** | `generate_outline` tool | 主题、页数 | outline.json（Pydantic 校验） | 1 次（含重试） |
+| **需求讨论** | 主 Agent 对话 | 用户消息 | 确认的主题/风格/受众/核心信息 | 0 次（纯对话） |
+| **文件上传** | `upload_and_parse` tool | 文件路径 | materials.md | 0 次 |
+| **大纲生成** | `generate_outline` tool | 主题、materials | outline.json（Pydantic 校验） | 1 次（含重试） |
 | **风格选择** | `select_template` tool | 模板名 | style_spec.json | 0 次 |
 | **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件 | N 次（并发） |
 | **导出** | `export_pptx` tool | slides/ 目录 | .pptx 文件 | 0 次 |
@@ -87,6 +88,7 @@ agent = create_deep_agent(
         list_templates,        # 查看模板列表
         generate_slides,       # 幻灯片并发生成
         export_pptx,           # PPTX 导出
+        upload_and_parse,      # 文件上传解析（markitdown）
     ],
     checkpointer=MemorySaver(),
     backend=FilesystemBackend(root_dir="output"),
@@ -99,11 +101,12 @@ agent = create_deep_agent(
 
 | Tool | 触发时机 | 输出 | 副作用 |
 |------|----------|------|--------|
+| `upload_and_parse` | 用户上传文件 | 解析确认 + 内容预览 | 保存 materials.md |
 | `generate_outline` | 主题确认后 | 大纲 JSON（KeyPoint 结构） | 保存 outline.json，更新 session.json |
 | `select_template` | 大纲确认后 | 简短确认 | 保存 style_spec.json，更新 session.json |
 | `list_templates` | 用户主动要求 | 模板列表 | 无 |
-| `generate_slides` | 模板确认后 | 文件路径列表 | 并发 LLM 调用，保存 HTML，更新 session.json |
-| `export_pptx` | 幻灯片生成后 | PPTX 路径 | 并发截图，更新 session.json |
+| `generate_slides` | 模板确认后 | 文件路径列表 + 失败警告 | 并发 LLM 调用，保存 HTML，更新 session.json |
+| `export_pptx` | 幻灯片生成后 | PPTX 路径 + 失败警告 | 并发截图，更新 session.json |
 
 ### 3.3 配置
 
@@ -246,10 +249,11 @@ ppt-agent/
 │   │   └── state.py            # KeyPoint + Outline + SessionState + SessionIndex + PipelineStep
 │   │
 │   ├── tools/
-│   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试）
+│   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试 + materials）
 │   │   ├── template.py         # select_template / list_templates
-│   │   ├── slide_gen.py        # generate_slides（并发 LLM 调用）
-│   │   └── export.py           # export_pptx（并发截图）
+│   │   ├── slide_gen.py        # generate_slides（并发 LLM 调用 + 容错）
+│   │   ├── export.py           # export_pptx（并发截图 + 容错）
+│   │   └── upload.py           # upload_and_parse（markitdown 文档解析）
 │   │
 │   ├── templates/
 │   │   ├── registry.py
@@ -271,7 +275,7 @@ ppt-agent/
 │   └── api/
 │
 └── tests/
-    ├── test_tools.py           # 20 个测试（模板、工具、校验、状态、会话索引）
+    ├── test_tools.py           # 23 个测试（模板、工具、校验、状态、会话索引、上传）
     └── test_renderer.py        # 渲染和 PPTX 管线测试
 ```
 
@@ -282,26 +286,29 @@ ppt-agent/
 ### 8.1 已完成
 
 - [x] CLI 对话入口（单 event loop，async）
-- [x] 5 阶段完整流程
-- [x] 5 个 async Tools
-- [x] 并发幻灯片生成（Semaphore 控制并发数）
-- [x] 并发 PNG 渲染（浏览器复用 + Semaphore）
+- [x] 6 阶段完整流程（含文件上传）
+- [x] 6 个 async Tools
+- [x] 并发幻灯片生成（Semaphore 控制并发数 + return_exceptions 容错）
+- [x] 并发 PNG 渲染（浏览器复用 + Semaphore + 容错）
 - [x] 5 个预设模板
 - [x] Playwright 2x 截图 + python-pptx 导出
 - [x] 4 个 LLM 提供商
 - [x] Outline Pydantic 校验 + 结构化重试
 - [x] KeyPoint 层级模型（text + sub_points + emphasis）
-- [x] SessionState 状态机
+- [x] 页数自适应（LLM 根据内容复杂度决定页数，或用户指定）
+- [x] SessionState 状态机（损坏文件自动回退）
 - [x] 会话隔离（每次生成独立目录，contextvars 传递会话上下文）
 - [x] SessionIndex 会话索引（index.json，前端可读取列表）
 - [x] 三级强调样式（模板 emphasis 定义）
-- [x] 20 个单元测试
+- [x] 文件上传与解析（markitdown：docx/xlsx/pdf/html/图片等，20MB 限制）
+- [x] 参考材料融入大纲（materials.md 自动读取 + materials 参数传递）
+- [x] 容错机制（单页生成失败不影响整体、HTML 有效性校验、PPTX 嵌入异常跳过、GraphInterrupt 恢复）
+- [x] 23 个单元测试
 - [x] Debug 输出（TOOL 调用/结果追踪）
 
 ### 8.2 待开发
 
 - [ ] 前端界面
-- [ ] 文件上传与解析（markitdown）
 - [ ] 联网搜索/研究
 - [ ] AI 自定义风格生成
 - [ ] PDF 导出
@@ -366,3 +373,18 @@ ppt-agent/
 
 **选择**：主 Agent 确认主题时，在一轮对话中同时收集受众、核心信息、数据/案例。
 **原因**：即使后续支持文件上传和联网搜索，用户也可能只输入一个简短主题。Agent 主动收集素材是大纲质量的基础，与搜索/上传功能互补不冲突。
+
+### 9.12 文件上传独立 tool + materials.md
+
+**选择**：`upload_and_parse` 作为独立 tool，解析结果保存为 `materials.md`，`generate_outline` 通过 `materials` 参数独立读取。
+**原因**：模块间更独立，upload 和 outline 解耦。支持多文件上传追加到同一 materials.md。大纲生成自动从会话目录读取 materials.md，也可通过参数直接传入。
+
+### 9.13 asyncio.gather return_exceptions 容错
+
+**选择**：幻灯片生成和渲染的 `asyncio.gather()` 均使用 `return_exceptions=True`，捕获异常后跳过失败项并报告。
+**原因**：N 页 PPT 中单页 LLM 调用失败（限流、超时、格式错误）或渲染失败（浏览器崩溃）不应导致整体崩溃。失败信息汇总返回给用户，方便定位问题。
+
+### 9.14 平衡花括号匹配提取 JSON
+
+**选择**：`_extract_json` 的回退方案使用平衡花括号计数，替代贪婪正则 `r"\{.*\}"`。
+**原因**：贪婪正则会从第一个 `{` 匹配到最后一个 `}`，LLM 返回 JSON 前后的解释文本中包含花括号时会导致匹配范围错误。平衡匹配更精确，同时正确处理 JSON 字符串内的转义花括号。

@@ -9,6 +9,7 @@ from langgraph.types import Command
 from ppt_agent.agent.agent import create_ppt_agent
 from ppt_agent.agent.state import PipelineStep, SessionEntry, SessionIndex, SessionState
 from ppt_agent.config import _current_session_dir, settings
+from ppt_agent.tools.upload import upload_and_parse
 
 
 def _print_new_messages(result: dict, seen: set) -> set:
@@ -62,7 +63,7 @@ async def cli():
     current_session_id: str | None = None
 
     print(f"PPT-Agent (model: {settings.model})")
-    print("输入需求开始制作 PPT，输入 /new 新建，输入 /quit 退出\n")
+    print("输入需求开始制作 PPT，输入 /new 新建，输入 /upload 上传文件，输入 /quit 退出\n")
 
     while True:
         try:
@@ -86,6 +87,28 @@ async def cli():
             seen_ids = set()
             current_session_id = session_id
             print(f"[新会话] {session_id}\n")
+            continue
+
+        if user_input == "/upload":
+            # Auto-create session if none active
+            if current_session_id is None:
+                session_id = _create_new_session()
+                session_dir = settings.output_dir / session_id
+                _current_session_dir.set(session_dir)
+                thread_id = str(uuid.uuid4())
+                config = {"configurable": {"thread_id": thread_id}}
+                seen_ids = set()
+                current_session_id = session_id
+            try:
+                file_path = input("文件路径: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                break
+            if not file_path:
+                continue
+            if file_path == "/quit":
+                break
+            result = upload_and_parse.invoke({"file_path": file_path})
+            print(f"\n[上传] {result}\n")
             continue
 
         # Auto-create session if none active
@@ -118,6 +141,13 @@ async def cli():
             )
             _print_new_messages(result, seen_ids)
         except GraphInterrupt:
+            # Print partial messages from the interrupted invocation
+            try:
+                state_snapshot = await agent.aget_state(config)
+                if state_snapshot and state_snapshot.values:
+                    _print_new_messages(state_snapshot.values, seen_ids)
+            except Exception:
+                pass
             print("\n[等待确认] 输入 'ok' 继续，或输入修改意见：")
             try:
                 feedback = input("你: ").strip()

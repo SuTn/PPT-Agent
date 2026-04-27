@@ -46,16 +46,17 @@ uv run ppt-agent
 ## 工作流程
 
 ```
-对话确认主题 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
+对话确认主题 → [可选] 上传文件 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
 ```
 
-每步完成后会展示结果，用户确认或提出修改后再继续。输入 `/new` 可随时新建会话。
+每步完成后会展示结果，用户确认或提出修改后再继续。页数默认由 LLM 根据内容复杂度自适应决定。
 
 ## CLI 命令
 
 | 命令 | 说明 |
 |------|------|
 | `/new` | 新建会话（之前的 PPT 保留在 output/ 中） |
+| `/upload` | 上传文件（docx/xlsx/pdf/图片等，解析为 Markdown 融入大纲） |
 | `/quit` | 退出 |
 
 ## 支持的 LLM 提供商
@@ -92,9 +93,11 @@ uv run pytest tests/ -v
 
 ## 架构
 
-- **主 Agent**：调度 5 个 async tool，管理对话流程，主动收集受众/核心信息
-- **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构
+- **主 Agent**：调度 6 个 async tool，管理对话流程，主动收集受众/核心信息
+- **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
+- **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构和页数
 - **会话隔离**：每次 PPT 生成独立目录，`contextvars` 传递会话上下文，`SessionIndex` 管理历史
+- **容错机制**：`asyncio.gather(return_exceptions=True)` 单页失败不影响整体；HTML 有效性校验；PPTX 嵌入异常跳过
 - **并发生成**：`asyncio.gather()` + `Semaphore` 控制幻灯片生成和渲染并发
 - **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
 - **导出管线**：HTML → Playwright 截图(2x) → python-pptx 嵌入
@@ -108,6 +111,7 @@ output/
 │   ├── session.json        # 会话状态（PipelineStep）
 │   ├── outline.json        # 大纲（KeyPoint 结构）
 │   ├── style_spec.json     # 模板风格规范
+│   ├── materials.md        # 上传材料（Markdown 格式，可选）
 │   ├── slides/             # HTML 幻灯片
 │   │   ├── slide_01_cover.html
 │   │   └── ...

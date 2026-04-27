@@ -3,6 +3,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
 ## 用户需求
 {requirements}
 
+{materials_section}
 ## 大纲质量要求
 
 ### 内容深度 — 根据内容灵活决定结构
@@ -29,6 +30,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
 - 从用户需求中识别**目标受众**（高管、技术人员、客户、学生等），据此调整术语深度和专业程度
 - 识别**核心论点**——观众看完全部幻灯片后应该记住的那个关键信息，在大纲中用 emphasis: high 突出呈现
 - 如果用户提供了具体数据、案例或材料，将其融入相关页面的 sub_points 中
+- 如果下方有**参考材料**，从中提取关键数据和论点，自然融入大纲而非照搬原文
 
 ## JSON 结构
 
@@ -42,7 +44,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
     - sub_points: 子要点数组（可选，需要时才用）
     - emphasis: "high" / "medium" / "low"（可选，默认 "medium"）
 - 封面页（cover）和结束页（ending）不需要 key_points
-- 总页数控制在 {page_count} 页左右
+{page_instruction}
 
 ## 输出格式
 ```json
@@ -84,3 +86,10 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
 ```
 
 只输出 JSON，不要其他内容。"""
+
+
+def _materials_section(materials: str = "") -> str:
+    if not materials or not materials.strip():
+        return ""
+    preview = materials[:6000] if len(materials) > 6000 else materials
+    return f"## 参考材料\n\n以下是用户上传的参考文档内容，请从中提取关键信息融入大纲：\n\n{preview}\n\n"

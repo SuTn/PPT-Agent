@@ -7,6 +7,7 @@ dependencies = [
     "deepagents>=0.5.3",
     "fastapi>=0.136.1",
     "langchain-openai>=1.2.1",
+    "markitdown>=0.1.1",
     "playwright>=1.58.0",
     "pydantic-settings>=2.14.0",
     "python-pptx>=1.0.2",
