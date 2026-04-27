@@ -113,7 +113,7 @@ uv run pytest tests/ -v
 |------|------|------|
 | `/api/v1/sessions` | POST | 创建新会话 |
 | `/api/v1/sessions` | GET | 列出所有会话 |
-| `/api/v1/sessions/{id}` | GET | 获取会话详情 |
+| `/api/v1/sessions/{id}` | GET | 获取会话详情（含历史消息） |
 | `/api/v1/sessions/{id}` | DELETE | 删除会话 |
 | `/api/v1/sessions/{id}/messages` | POST | 发送消息（非流式） |
 | `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话 |
@@ -129,6 +129,7 @@ uv run pytest tests/ -v
 - **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
 - **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构和页数
 - **会话隔离**：每次 PPT 生成独立目录，`contextvars` + 中间件传递会话上下文，`SessionIndex` 管理历史
+- **对话持久化**：SQLite 持久化 agent 对话历史，重启后前端可恢复历史会话
 - **容错机制**：`asyncio.gather(return_exceptions=True)` 单页失败不影响整体；HTML 有效性校验；PPTX 嵌入异常跳过
 - **并发生成**：`asyncio.gather()` + `Semaphore` 控制幻灯片生成和渲染并发
 - **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
@@ -139,6 +140,7 @@ uv run pytest tests/ -v
 ```
 output/
 ├── index.json              # 会话索引（所有 PPT 生成记录）
+├── checkpoints.db          # SQLite 对话历史持久化
 ├── a1b2c3d4/               # 单个会话目录
 │   ├── session.json        # 会话状态（PipelineStep）
 │   ├── outline.json        # 大纲（KeyPoint 结构）

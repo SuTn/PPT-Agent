@@ -48,9 +48,10 @@
 |------|------|------|
 | **Agent 框架** | LangChain Deep Agents | `create_deep_agent`，内置文件系统、工具调用 |
 | **Web 框架** | FastAPI | 异步，未来扩展 API 服务 |
-| **HTML 渲染** | Playwright | 无头浏览器，截图 HTML → PNG（2x 分辨率） |
+| **HTML 渲染** | Playwright (sync API) | 无头浏览器，截图 HTML → PNG（2x 分辨率），`asyncio.to_thread` 调用 |
 | **PPTX 生成** | python-pptx | 纯 Python，截图作为幻灯片背景嵌入 |
 | **配置管理** | Pydantic Settings | 环境变量 + .env 文件 |
+| **对话持久化** | SQLite (AsyncSqliteSaver) | LangGraph checkpoint 持久化，重启恢复会话 |
 | **包管理** | uv | 快速依赖管理与虚拟环境 |
 
 ### 2.2 LLM 提供商
@@ -93,7 +94,7 @@ agent = create_deep_agent(
         export_pptx,           # PPTX 导出
         upload_and_parse,      # 文件上传解析（markitdown）
     ],
-    checkpointer=MemorySaver(),
+    checkpointer=AsyncSqliteSaver.from_conn_string("output/checkpoints.db"),
     backend=FilesystemBackend(root_dir="output"),
 )
 ```
@@ -104,7 +105,7 @@ agent = create_deep_agent(
 
 | Tool | 触发时机 | 输出 | 副作用 |
 |------|----------|------|--------|
-| `upload_and_parse` | 用户上传文件 | 解析确认 + 内容预览 | 保存 materials.md |
+| `upload_and_parse` | 用户上传文件 | 解析确认 + 内容预览 | 保存 materials.md，注入 HumanMessage 到对话 |
 | `generate_outline` | 主题确认后 | 大纲 JSON（KeyPoint 结构） | 保存 outline.json，更新 session.json |
 | `select_template` | 大纲确认后 | 简短确认 | 保存 style_spec.json，更新 session.json |
 | `list_templates` | 用户主动要求 | 模板列表 | 无 |
@@ -227,8 +228,9 @@ class Outline(BaseModel):
 HTML → Playwright 截图(2x, 并发) → PNG → python-pptx 嵌入 → .pptx
 ```
 
-- 浏览器实例复用：一次启动，所有页面在同一浏览器中截图
-- 并发控制：`Semaphore(5)` 限制同时打开的 page 数量
+- **Sync API + `asyncio.to_thread()`**：使用同步 Playwright 避免与 uvicorn 的事件循环冲突（Windows 兼容）
+- 浏览器实例复用：`threading.local()` 在渲染线程中保持单一浏览器实例
+- 并发控制：`Semaphore(5)` 限制同时发起的渲染线程数
 - 截图分辨率：2560×1440（2x 缩放）
 
 ---
@@ -267,7 +269,7 @@ ppt-agent/
 │   │   └── report/
 │   │
 │   ├── export/
-│   │   ├── renderer.py         # Playwright（浏览器复用 + 单页截图）
+│   │   ├── renderer.py         # Playwright sync API（thread-local 浏览器复用）
 │   │   └── pptx_builder.py     # python-pptx 组装
 │   │
 │   ├── prompts/
@@ -326,6 +328,8 @@ ppt-agent/
 - [x] PPTX 下载
 - [x] 模板查询
 - [x] 会话上下文中间件（从 URL 提取 session_id）
+- [x] SQLite 对话持久化（AsyncSqliteSaver，重启恢复）
+- [x] 历史消息加载（GET /sessions/{id} 返回 checkpointer 历史）
 
 ### 8.3 前端界面
 
@@ -335,6 +339,7 @@ ppt-agent/
 - [x] Markdown 渲染（marked）
 - [x] 文件上传（drag & drop）
 - [x] 会话管理（创建、列表、删除、切换）
+- [x] 会话历史恢复（从 SQLite checkpointer 加载历史消息）
 - [x] 响应式设计
 
 ### 8.4 待开发
@@ -422,3 +427,18 @@ ppt-agent/
 
 **选择**：`_extract_json` 的回退方案使用平衡花括号计数，替代贪婪正则 `r"\{.*\}"`。
 **原因**：贪婪正则会从第一个 `{` 匹配到最后一个 `}`，LLM 返回 JSON 前后的解释文本中包含花括号时会导致匹配范围错误。平衡匹配更精确，同时正确处理 JSON 字符串内的转义花括号。
+
+### 9.16 SQLite 持久化对话历史
+
+**选择**：`AsyncSqliteSaver` 替代 `MemorySaver`，checkpoint 存储在 `output/checkpoints.db`。
+**原因**：MemorySaver 仅内存驻留，进程退出后对话历史全部丢失。SQLite 持久化后，CLI/API 重启可恢复历史会话，前端通过 `GET /sessions/{id}` 从 checkpointer 读取消息并展示。
+
+### 9.17 Playwright Sync API + asyncio.to_thread
+
+**选择**：使用 `playwright.sync_api` + `asyncio.to_thread()` 替代 `playwright.async_api`。
+**原因**：uvicorn 在 Windows 上使用 `SelectorEventLoop`（不支持 `asyncio.create_subprocess_exec`），而 Playwright async API 内部依赖子进程启动浏览器。同步 API 使用 `subprocess.Popen`（不受此限制），通过 `asyncio.to_thread` 在线程池中运行，完全兼容 uvicorn 的事件循环。浏览器实例通过 `threading.local()` 在渲染线程中复用。
+
+### 9.18 上传文件注入 Agent 对话
+
+**选择**：CLI 的 `/upload` 命令在解析文件后，将结果作为 `HumanMessage` 注入 agent 对话。
+**原因**：之前 `/upload` 只在控制台打印结果就 `continue`，agent 的 LangGraph 对话历史中没有上传记录，导致 agent 不知道用户上传了材料。注入后 agent 能感知上传内容，配合系统提示词中的上传指引，正确调用 `generate_outline`（自动读取 `materials.md`）。

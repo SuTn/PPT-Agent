@@ -41,12 +41,26 @@ async def list_sessions():
 
 
 @router.get("/{session_id}")
-async def get_session(session_id: str):
+async def get_session(session_id: str, agent=Depends(get_agent)):
     session_dir = settings.output_dir / session_id
     if not session_dir.exists():
         raise HTTPException(status_code=404, detail="Session not found")
     state = SessionState.load(session_dir / "session.json")
-    return state.model_dump()
+
+    # Load chat history from checkpointer
+    config = {"configurable": {"thread_id": session_id}}
+    messages = []
+    try:
+        snapshot = await agent.aget_state(config)
+        if snapshot and snapshot.values:
+            for msg in snapshot.values.get("messages", []):
+                messages.append(_msg_to_dict(msg))
+    except Exception:
+        pass
+
+    result = state.model_dump()
+    result["messages"] = messages
+    return result
 
 
 @router.delete("/{session_id}")

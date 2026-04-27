@@ -1,18 +1,27 @@
+import asyncio
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from ppt_agent.agent.agent import create_ppt_agent
 from ppt_agent.api.routes import sessions, templates, upload
 from ppt_agent.config import _current_session_dir, settings
 
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    app.state.agent = create_ppt_agent(checkpointer=MemorySaver())
-    yield
+    db_path = settings.output_dir / "checkpoints.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as checkpointer:
+        app.state.checkpointer = checkpointer
+        app.state.agent = create_ppt_agent(checkpointer)
+        yield
 
 
 app = FastAPI(title="PPT-Agent API", version="0.1.0", lifespan=lifespan)

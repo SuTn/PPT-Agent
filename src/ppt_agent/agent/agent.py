@@ -1,6 +1,5 @@
 from deepagents import create_deep_agent
 from deepagents.backends import FilesystemBackend
-from langgraph.checkpoint.memory import MemorySaver
 
 from ppt_agent.agent.prompts import SYSTEM_PROMPT
 from ppt_agent.config import settings
@@ -12,9 +11,7 @@ from ppt_agent.tools.export import export_pptx
 from ppt_agent.tools.upload import upload_and_parse
 
 
-def create_ppt_agent(checkpointer=None):
-    if checkpointer is None:
-        checkpointer = MemorySaver()
+def create_ppt_agent(checkpointer):
     return create_deep_agent(
         model=get_model(),
         system_prompt=SYSTEM_PROMPT,

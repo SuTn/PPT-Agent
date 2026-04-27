@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 import type { Message, SSEEvent } from "../api/types";
+import client from "../api/client";
 
 const storeMap = new Map<string, ReturnType<typeof createSessionStore>>();
 
@@ -9,6 +10,28 @@ function createSessionStore(sessionId: string) {
     const messages = ref<Message[]>([]);
     const isStreaming = ref(false);
     const error = ref<string | null>(null);
+    const loaded = ref(false);
+
+    async function loadHistory() {
+      if (loaded.value) return;
+      try {
+        const { data } = await client.get(`/sessions/${sessionId}`);
+        if (data.messages && Array.isArray(data.messages)) {
+          messages.value = data.messages
+            .filter((m: any) => m.content || m.tool_calls)
+            .map((m: any) => {
+              const msg: Message = { role: m.type === "ai" ? "assistant" : m.type === "tool" ? "system" : m.type, content: m.content || "" };
+              if (m.tool_calls) msg.toolCalls = m.tool_calls;
+              if (m.type === "tool") msg.toolResult = true;
+              return msg;
+            });
+        }
+      } catch {
+        // session not found or no history yet
+      } finally {
+        loaded.value = true;
+      }
+    }
 
     async function sendMessage(content: string) {
       messages.value.push({ role: "user", content });
@@ -85,7 +108,7 @@ function createSessionStore(sessionId: string) {
       messages.value.push({ role: "system", content: text });
     }
 
-    return { messages, isStreaming, error, sendMessage, addSystemNotice };
+    return { messages, isStreaming, error, sendMessage, addSystemNotice, loadHistory };
   })();
 }
 

@@ -1,8 +1,10 @@
 import asyncio
+import sys
 import uuid
 from datetime import datetime, timezone
 
 from langchain_core.messages import HumanMessage
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 
@@ -56,7 +58,15 @@ def _create_new_session() -> str:
 
 
 async def cli():
-    agent = create_ppt_agent()
+    db_path = settings.output_dir / "checkpoints.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    async with AsyncSqliteSaver.from_conn_string(str(db_path)) as checkpointer:
+        agent = create_ppt_agent(checkpointer)
+        await _run_cli(agent)
+
+
+async def _run_cli(agent):
     thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
     seen_ids: set = set()
@@ -109,6 +119,15 @@ async def cli():
                 break
             result = upload_and_parse.invoke({"file_path": file_path})
             print(f"\n[上传] {result}\n")
+            # Inject upload result into agent conversation so it knows about materials
+            try:
+                agent_result = await agent.ainvoke(
+                    {"messages": [HumanMessage(content=f"[系统] 用户上传了文件，解析结果：\n{result}")]},
+                    config,
+                )
+                _print_new_messages(agent_result, seen_ids)
+            except Exception as e:
+                print(f"\n[警告] Agent 未确认上传: {e}\n")
             continue
 
         # Auto-create session if none active
@@ -167,6 +186,8 @@ async def cli():
 
 
 def main():
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
     asyncio.run(cli())
 
 

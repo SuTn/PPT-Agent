@@ -20,7 +20,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onMounted } from "vue";
 import { useSessionsStore } from "../stores/sessions";
 import { useSessionStore } from "../stores/session";
 import MessageList from "./MessageList.vue";
@@ -32,6 +32,10 @@ const props = defineProps<{ sessionId: string }>();
 const sessionsStore = useSessionsStore();
 const sessionStore = useSessionStore(props.sessionId);
 const session = computed(() => sessionsStore.current);
+
+onMounted(() => {
+  sessionStore.loadHistory();
+});
 
 async function onSend(content: string) {
   await sessionStore.sendMessage(content);
