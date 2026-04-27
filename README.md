@@ -119,13 +119,15 @@ uv run pytest tests/ -v
 | `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话 |
 | `/api/v1/sessions/{id}/upload` | POST | 上传文件 |
 | `/api/v1/sessions/{id}/download` | GET | 下载 PPTX |
+| `/api/v1/sessions/{id}/slides` | GET | 获取幻灯片文件列表 |
+| `/api/v1/sessions/{id}/slides/{filename}` | GET | 获取幻灯片文件（HTML/PNG） |
 | `/api/v1/templates` | GET | 获取模板列表 |
 
 ## 架构
 
 - **主 Agent**：调度 6 个 async tool，管理对话流程，主动收集受众/核心信息
 - **API 层**：FastAPI 实现 SSE 流式对话、会话管理、文件上传、模板查询
-- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度
+- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 进度条 + 大纲结构化展示 + 模板卡片 + 幻灯片预览
 - **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
 - **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构和页数
 - **会话隔离**：每次 PPT 生成独立目录，`contextvars` + 中间件传递会话上下文，`SessionIndex` 管理历史

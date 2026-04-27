@@ -73,8 +73,8 @@
 | 构建 | Vite |
 | 状态管理 | Pinia |
 | HTTP 客户端 | axios |
-| Markdown | marked |
-| 样式 | CSS (scoped) |
+| Markdown | marked + DOMPurify |
+| 样式 | CSS (scoped) + CSS Variables 设计系统 |
 
 ---
 
@@ -283,13 +283,41 @@ ppt-agent/
 │       ├── deps.py              # 依赖注入（agent 单例）
 │       ├── streaming.py         # SSE 流式生成器
 │       └── routes/
-│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载
+│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载 + 幻灯片预览
 │           ├── templates.py     # 模板查询
 │           └── upload.py        # 文件上传处理
 │
 └── tests/
     ├── test_tools.py           # 23 个测试（模板、工具、校验、状态、会话索引、上传）
     └── test_renderer.py        # 渲染和 PPTX 管线测试
+```
+
+### 7.2 前端项目结构
+
+```
+web/
+├── src/
+│   ├── api/
+│   │   ├── client.ts            # axios 实例
+│   │   └── types.ts             # TypeScript 类型定义
+│   ├── stores/
+│   │   ├── sessions.ts          # 会话列表 store
+│   │   └── session.ts           # 单会话 store（SSE 流处理 + pipeline step）
+│   ├── components/
+│   │   ├── App.vue              # 根组件（欢迎屏）
+│   │   ├── ChatInterface.vue    # 对话主界面（编排器）
+│   │   ├── SessionList.vue      # 侧边栏会话列表
+│   │   ├── MessageList.vue      # 消息列表（Markdown + DOMPurify + 工具卡片）
+│   │   ├── InputBar.vue         # 输入栏
+│   │   ├── FileUpload.vue       # 文件上传（拖拽）
+│   │   ├── PipelineStepper.vue  # 5 步流程进度条
+│   │   ├── OutlinePreview.vue   # 大纲结构化展示卡片
+│   │   ├── TemplateSelector.vue # 模板选择器
+│   │   ├── TemplateCard.vue     # 模板预览卡片（渐变色条）
+│   │   └── SlidePreview.vue     # 幻灯片缩略图预览
+│   └── styles/
+│       └── main.css             # CSS Variables 设计系统
+└── package.json
 ```
 
 ---
@@ -334,12 +362,19 @@ ppt-agent/
 ### 8.3 前端界面
 
 - [x] Vue 3 + TypeScript 项目结构
-- [x] Pinia 状态管理（sessions store + session store）
-- [x] SSE 实时流式展示
-- [x] Markdown 渲染（marked）
+- [x] Pinia 状态管理（sessions store + per-session store 工厂模式）
+- [x] SSE 实时流式展示（含缓冲区 flush）
+- [x] Markdown 渲染（marked + DOMPurify 防 XSS）
 - [x] 文件上传（drag & drop）
 - [x] 会话管理（创建、列表、删除、切换）
-- [x] 会话历史恢复（从 SQLite checkpointer 加载历史消息）
+- [x] 会话历史恢复（从 SQLite checkpointer 加载历史消息 + 大纲恢复）
+- [x] CSS Variables 设计系统（spacing、radius、shadow、状态色、transition）
+- [x] 5 步流程进度条（PipelineStepper：SSE tool_call 实时映射）
+- [x] 大纲结构化展示（OutlinePreview：layout badge、emphasis 色点、key_points 列表）
+- [x] 模板选择卡片（TemplateCard：渐变色条预览 + TemplateSelector 水平滚动）
+- [x] 幻灯片缩略图预览（SlidePreview：可折叠面板 + 点击放大 + 模态框）
+- [x] 工具调用状态卡片（进行中旋转图标 + 完成勾选图标 + 描述文本）
+- [x] 空状态欢迎屏（品牌图标 + 推荐提示词 chips）
 - [x] 响应式设计
 
 ### 8.4 待开发

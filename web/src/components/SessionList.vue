@@ -1,8 +1,13 @@
 <template>
   <div class="session-list">
     <div class="session-list-header">
-      <h2>PPT-Agent</h2>
-      <button class="btn-new" @click="handleCreate">+ 新建</button>
+      <div class="brand">
+        <div class="brand-icon">P</div>
+        <h2>PPT-Agent</h2>
+      </div>
+      <button class="btn-new" @click="handleCreate" title="新建会话">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </div>
     <ul>
       <li
@@ -11,9 +16,14 @@
         :class="{ active: s.session_id === sessionsStore.currentId }"
         @click="sessionsStore.currentId = s.session_id"
       >
-        <div class="session-title">{{ s.title || s.session_id }}</div>
-        <div class="session-step">{{ stepLabel(s.step) }}</div>
-        <button class="btn-delete" @click.stop="handleDelete(s.session_id)" title="删除">×</button>
+        <div class="step-dot" :class="stepClass(s.step)"></div>
+        <div class="session-info">
+          <div class="session-title">{{ s.title || s.session_id }}</div>
+          <div class="session-step">{{ stepLabel(s.step) }}</div>
+        </div>
+        <button class="btn-delete" @click.stop="handleDelete(s.session_id)" title="删除">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
       </li>
     </ul>
   </div>
@@ -25,15 +35,22 @@ import type { Session } from "../api/types";
 
 const sessionsStore = useSessionsStore();
 
+const STEP_LABELS: Record<string, string> = {
+  idle: "未开始",
+  outline_done: "大纲完成",
+  template_done: "模板已选",
+  slides_done: "幻灯片完成",
+  exported: "已导出",
+};
+
 function stepLabel(step: Session["step"]): string {
-  const map: Record<string, string> = {
-    idle: "未开始",
-    outline_done: "大纲完成",
-    template_done: "模板已选",
-    slides_done: "幻灯片完成",
-    exported: "已导出",
-  };
-  return map[step] ?? step;
+  return STEP_LABELS[step] ?? step;
+}
+
+function stepClass(step: Session["step"]): string {
+  if (step === "exported") return "dot-success";
+  if (step === "idle") return "dot-idle";
+  return "dot-active";
 }
 
 async function handleCreate() {
@@ -56,88 +73,127 @@ async function handleDelete(id: string) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
+  padding: var(--space-lg) var(--space-xl);
   border-bottom: 1px solid var(--border);
 }
 
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.brand-icon {
+  width: 28px;
+  height: 28px;
+  background: var(--primary);
+  color: white;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+
 .session-list-header h2 {
-  margin: 0;
-  font-size: 18px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .btn-new {
-  padding: 6px 12px;
-  border: 1px solid var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
   background: transparent;
-  color: var(--primary);
-  border-radius: 6px;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 13px;
+  transition: all var(--transition-fast);
 }
-
 .btn-new:hover {
   background: var(--primary);
+  border-color: var(--primary);
   color: white;
 }
 
 ul {
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: var(--space-sm);
   overflow-y: auto;
   flex: 1;
 }
 
 li {
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: var(--space-md) var(--space-md);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: background 0.15s;
+  gap: var(--space-md);
+  transition: all var(--transition-fast);
+  border-left: 3px solid transparent;
 }
-
 li:hover {
-  background: var(--hover);
+  background: var(--border-light);
+}
+li.active {
+  background: #eef2ff;
+  border-left-color: var(--primary);
 }
 
-li.active {
-  background: var(--active);
+.session-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .session-title {
-  flex: 1;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text);
 }
 
 .session-step {
   font-size: 11px;
   color: var(--muted);
-  white-space: nowrap;
+  margin-top: 2px;
 }
 
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-idle { background: var(--border); }
+.dot-active { background: var(--primary-light); }
+.dot-success { background: var(--success); }
+
 .btn-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   color: var(--muted);
   cursor: pointer;
-  font-size: 16px;
-  padding: 0 4px;
-  line-height: 1;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: all var(--transition-fast);
 }
-
-li:hover .btn-delete {
-  opacity: 1;
-}
-
+li:hover .btn-delete { opacity: 1; }
 .btn-delete:hover {
-  color: #e53e3e;
+  color: var(--danger);
+  background: var(--danger-light);
 }
 </style>

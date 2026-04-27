@@ -13,7 +13,10 @@
       @change="handleSelect"
     />
     <button type="button" class="btn-upload" @click="fileInput?.click()" :disabled="uploading">
-      {{ uploading ? "上传中..." : "📎 上传文件" }}
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M7 2v6M4.5 5L7 2 9.5 5M2 9v2a1 1 0 001 1h8a1 1 0 001-1V9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      {{ uploading ? "上传中..." : "上传" }}
     </button>
     <span v-if="fileName" class="file-name">{{ fileName }}</span>
   </div>
@@ -65,30 +68,32 @@ function handleDrop(e: DragEvent) {
 .file-upload {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-xl) 0;
 }
 
 .file-upload.dragging {
-  background: var(--active);
-  border-radius: 6px;
+  background: var(--info-light);
+  border-radius: var(--radius-md);
 }
 
 .btn-upload {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   padding: 4px 10px;
   border: 1px solid var(--border);
   background: transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 12px;
   color: var(--muted);
+  transition: all var(--transition-fast);
 }
-
 .btn-upload:hover:not(:disabled) {
-  border-color: var(--primary);
+  border-color: var(--primary-light);
   color: var(--primary);
 }
-
 .btn-upload:disabled {
   opacity: 0.5;
 }
@@ -96,5 +101,9 @@ function handleDrop(e: DragEvent) {
 .file-name {
   font-size: 12px;
   color: var(--muted);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

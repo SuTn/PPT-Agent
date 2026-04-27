@@ -17,9 +17,16 @@ def list_all_templates() -> list[dict]:
     for d in sorted(TEMPLATES_DIR.iterdir()):
         if d.is_dir() and (d / "style_spec.json").exists():
             spec = load_template(d.name)
+            colors = spec.get("colors", {})
             templates.append({
                 "name": spec["name"],
                 "key": d.name,
                 "description": spec.get("description", ""),
+                "colors": {
+                    "primary": colors.get("primary", "#4f46e5"),
+                    "secondary": colors.get("secondary", "#818cf8"),
+                    "accent": colors.get("accent", "#f59e0b"),
+                    "background": colors.get("background", "#ffffff"),
+                },
             })
     return templates

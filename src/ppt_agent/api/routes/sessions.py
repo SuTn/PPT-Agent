@@ -1,3 +1,4 @@
+import re
 import shutil
 import uuid
 from datetime import datetime, timezone
@@ -113,6 +114,41 @@ async def download_pptx(session_id: str):
     if not state.pptx_file:
         raise HTTPException(status_code=404, detail="PPTX not yet generated")
     return FileResponse(state.pptx_file, filename=state.pptx_file.split("/")[-1])
+
+
+@router.get("/{session_id}/slides")
+async def list_slides(session_id: str):
+    session_dir = settings.output_dir / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    slides_dir = session_dir / "slides"
+    if not slides_dir.exists():
+        return {"slides": []}
+    slides = []
+    for f in sorted(slides_dir.iterdir()):
+        if f.suffix == ".html":
+            name_match = re.match(r"slide_(\d+)_(.+)", f.stem)
+            page = int(name_match.group(1)) if name_match else 0
+            layout = name_match.group(2) if name_match else "content"
+            png_path = f.with_suffix(".png")
+            slides.append({
+                "page": page,
+                "layout": layout,
+                "html": f.name,
+                "has_png": png_path.exists(),
+            })
+    return {"slides": slides}
+
+
+@router.get("/{session_id}/slides/{filename}")
+async def get_slide_file(session_id: str, filename: str):
+    session_dir = settings.output_dir / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    file_path = session_dir / "slides" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(str(file_path))
 
 
 def _validate_session(session_id: str):

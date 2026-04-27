@@ -12,8 +12,12 @@ export const useSessionsStore = defineStore("sessions", () => {
   );
 
   async function fetchSessions() {
-    const { data } = await client.get("/sessions");
-    sessions.value = data.sessions;
+    try {
+      const { data } = await client.get("/sessions");
+      sessions.value = data.sessions;
+    } catch {
+      // API unavailable
+    }
   }
 
   async function createSession(title = "") {

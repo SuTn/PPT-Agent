@@ -5,17 +5,27 @@ import client from "../api/client";
 
 const storeMap = new Map<string, ReturnType<typeof createSessionStore>>();
 
+const TOOL_TO_STEP: Record<string, string> = {
+  generate_outline: "outline_done",
+  select_template: "template_done",
+  generate_slides: "slides_done",
+  export_pptx: "exported",
+};
+
 function createSessionStore(sessionId: string) {
   return defineStore(`session-${sessionId}`, () => {
     const messages = ref<Message[]>([]);
     const isStreaming = ref(false);
     const error = ref<string | null>(null);
     const loaded = ref(false);
+    const pipelineStep = ref("idle");
+    const outline = ref<any>(null);
 
     async function loadHistory() {
       if (loaded.value) return;
       try {
         const { data } = await client.get(`/sessions/${sessionId}`);
+        if (data.step) pipelineStep.value = data.step;
         if (data.messages && Array.isArray(data.messages)) {
           messages.value = data.messages
             .filter((m: any) => m.content || m.tool_calls)
@@ -25,6 +35,14 @@ function createSessionStore(sessionId: string) {
               if (m.type === "tool") msg.toolResult = true;
               return msg;
             });
+          // Restore outline from history
+          for (const msg of messages.value) {
+            if (msg.toolResult && msg.content.startsWith("[generate_outline]")) {
+              const jsonStr = msg.content.replace(/^\[generate_outline\]\s*/, "");
+              try { outline.value = JSON.parse(jsonStr); } catch { /* ignore */ }
+              break;
+            }
+          }
         }
       } catch {
         // session not found or no history yet
@@ -50,10 +68,14 @@ function createSessionStore(sessionId: string) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let lastChunk = "";
 
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
+          if (done) {
+            lastChunk = buffer;
+            break;
+          }
 
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split("\n");
@@ -78,22 +100,58 @@ function createSessionStore(sessionId: string) {
                 }
               } else if (event.type === "tool_call") {
                 assistantMsg = null;
+                const toolName = event.name!;
                 messages.value.push({
                   role: "assistant",
                   content: "",
-                  toolCalls: [{ name: event.name!, args: event.args ?? {} }],
+                  toolCalls: [{ name: toolName, args: event.args ?? {} }],
                 });
+                // Update pipeline step based on tool being called
+                if (TOOL_TO_STEP[toolName]) {
+                  pipelineStep.value = TOOL_TO_STEP[toolName];
+                }
               } else if (event.type === "tool_result") {
+                const toolName = event.name!;
+                const toolContent = event.content ?? "";
                 messages.value.push({
                   role: "system",
-                  content: `[${event.name}] ${event.content ?? ""}`,
+                  content: `[${toolName}] ${toolContent}`,
                   toolResult: true,
                 });
+                // Parse outline from generate_outline tool result
+                if (toolName === "generate_outline" && toolContent.trim().startsWith("{")) {
+                  try {
+                    outline.value = JSON.parse(toolContent);
+                  } catch {
+                    // not valid JSON
+                  }
+                }
               } else if (event.type === "error") {
                 error.value = event.message ?? "Unknown error";
               }
             } catch {
               // skip malformed JSON
+            }
+          }
+
+          // Flush remaining buffer after stream ends
+          if (lastChunk) {
+            const trimmed = lastChunk.trim();
+            if (trimmed.startsWith("data: ")) {
+              const payload = trimmed.slice(6);
+              if (payload !== "[DONE]") {
+                try {
+                  const event: SSEEvent = JSON.parse(payload);
+                  if (event.type === "content" && event.content) {
+                    if (!assistantMsg) {
+                      assistantMsg = { role: "assistant", content: event.content };
+                      messages.value.push(assistantMsg);
+                    } else {
+                      assistantMsg.content += event.content;
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
             }
           }
         }
@@ -108,7 +166,7 @@ function createSessionStore(sessionId: string) {
       messages.value.push({ role: "system", content: text });
     }
 
-    return { messages, isStreaming, error, sendMessage, addSystemNotice, loadHistory };
+    return { messages, isStreaming, error, pipelineStep, outline, sendMessage, addSystemNotice, loadHistory };
   })();
 }
 
