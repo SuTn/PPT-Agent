@@ -29,6 +29,11 @@
     "use_gradient": true,
     "asymmetric": true
   },
+  "emphasis": {
+    "high": { "font_size": "26px", "color": "#e53e6b", "font_weight": "900", "background": "background: linear-gradient(135deg, #fff5f5, #ffe0e8); padding: 4px 16px; border-radius: 4px" },
+    "medium": { "font_size": "20px", "color": "#2d3436", "font_weight": "normal" },
+    "low": { "font_size": "16px", "color": "#b2bec3", "font_weight": "normal" }
+  },
   "component_styles": {
     "cover": "渐变背景（粉红到红），白色超大标题，可使用倾斜或偏移的排版，右下角黄色装饰圆形",
     "toc": "白色背景，左侧大号渐变编号，目录条目使用粗体，每条间有粉色细线",

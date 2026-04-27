@@ -5,7 +5,7 @@ import re
 from langchain_core.tools import tool
 
 from ppt_agent.agent.state import SessionState, PipelineStep
-from ppt_agent.config import settings
+from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.slide import SLIDE_PROMPT
 
@@ -46,8 +46,9 @@ async def generate_slides() -> str:
 
     自动读取 outline.json 和 style_spec.json，并发调用 LLM 生成每页 HTML。
     """
-    outline_path = settings.output_dir / "outline.json"
-    style_spec_path = settings.output_dir / "style_spec.json"
+    session_dir = get_session_dir()
+    outline_path = session_dir / "outline.json"
+    style_spec_path = session_dir / "style_spec.json"
 
     if not outline_path.exists():
         return "[错误] outline.json 不存在，请先生成大纲。"
@@ -64,7 +65,7 @@ async def generate_slides() -> str:
     model = get_model()
     sem = asyncio.Semaphore(settings.slide_concurrency)
 
-    slides_dir = settings.output_dir / "slides"
+    slides_dir = session_dir / "slides"
     slides_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = [
@@ -80,9 +81,9 @@ async def generate_slides() -> str:
             f.write(html_content)
         generated.append(str(filepath))
 
-    state = SessionState.load(settings.output_dir / "session.json")
+    state = SessionState.load(session_dir / "session.json")
     state.step = PipelineStep.SLIDES_DONE
     state.slides_dir = str(slides_dir)
-    state.save(settings.output_dir / "session.json")
+    state.save(session_dir / "session.json")
 
     return f"已生成 {len(generated)} 张幻灯片:\n" + "\n".join(generated)

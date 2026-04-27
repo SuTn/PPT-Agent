@@ -80,6 +80,51 @@ def test_outline_valid():
     assert len(outline.slides) == 2
 
 
+def test_outline_rich_keypoints():
+    from ppt_agent.agent.state import Outline, KeyPoint
+
+    outline = Outline.model_validate({
+        "title": "Rich",
+        "slides": [
+            {
+                "page": 1,
+                "layout": "content",
+                "title": "核心数据",
+                "key_points": [
+                    {
+                        "text": "市场规模达到 1000 亿",
+                        "emphasis": "high",
+                        "sub_points": ["同比增长 30%", "连续三年高增长"],
+                    },
+                    {"text": "补充说明", "emphasis": "low"},
+                ],
+            },
+        ],
+    })
+    kp = outline.slides[0].key_points[0]
+    assert isinstance(kp, KeyPoint)
+    assert kp.text == "市场规模达到 1000 亿"
+    assert kp.emphasis == "high"
+    assert len(kp.sub_points) == 2
+    assert outline.slides[0].key_points[1].emphasis == "low"
+
+
+def test_outline_string_keypoints_compat():
+    from ppt_agent.agent.state import Outline, KeyPoint
+
+    outline = Outline.model_validate({
+        "title": "Compat",
+        "slides": [
+            {"page": 1, "layout": "content", "title": "内容", "key_points": ["简单要点"]},
+        ],
+    })
+    kp = outline.slides[0].key_points[0]
+    assert isinstance(kp, KeyPoint)
+    assert kp.text == "简单要点"
+    assert kp.sub_points == []
+    assert kp.emphasis == "medium"
+
+
 def test_outline_missing_title():
     from ppt_agent.agent.state import Outline
 
@@ -132,8 +177,32 @@ def test_session_state():
         from pathlib import Path
         path = Path(tmpdir) / "session.json"
 
-        state = SessionState()
+        state = SessionState(session_id="abc12345")
         state.save(path)
 
         loaded = SessionState.load(path)
         assert loaded.step == PipelineStep.IDLE
+        assert loaded.session_id == "abc12345"
+
+
+def test_session_index():
+    from ppt_agent.agent.state import SessionIndex, SessionEntry, PipelineStep
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from pathlib import Path
+        index_path = Path(tmpdir) / "index.json"
+        index = SessionIndex(index_path)
+
+        index.add(SessionEntry(session_id="s1", title="PPT 1", created_at="2026-01-01"))
+        index.add(SessionEntry(session_id="s2", title="PPT 2", created_at="2026-01-02"))
+
+        entries = index.list_all()
+        assert len(entries) == 2
+        assert entries[0].session_id == "s2"  # newest first (insert at 0)
+
+        index.update("s1", title="Updated PPT 1", step=PipelineStep.EXPORTED)
+        entries = index.list_all()
+        updated = [e for e in entries if e.session_id == "s1"][0]
+        assert updated.title == "Updated PPT 1"
+        assert updated.step == PipelineStep.EXPORTED

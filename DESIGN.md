@@ -20,7 +20,7 @@
 
 | 阶段 | 实现方式 | 输入 | 输出 | LLM 调用 |
 |------|----------|------|------|----------|
-| **需求讨论** | 主 Agent 对话 | 用户消息 | 确认的主题/页数/风格 | 0 次（纯对话） |
+| **需求讨论** | 主 Agent 对话 | 用户消息 | 确认的主题/页数/风格/受众/核心信息 | 0 次（纯对话） |
 | **大纲生成** | `generate_outline` tool | 主题、页数 | outline.json（Pydantic 校验） | 1 次（含重试） |
 | **风格选择** | `select_template` tool | 模板名 | style_spec.json | 0 次 |
 | **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件 | N 次（并发） |
@@ -99,7 +99,7 @@ agent = create_deep_agent(
 
 | Tool | 触发时机 | 输出 | 副作用 |
 |------|----------|------|--------|
-| `generate_outline` | 主题确认后 | 大纲 JSON | 保存 outline.json，更新 session.json |
+| `generate_outline` | 主题确认后 | 大纲 JSON（KeyPoint 结构） | 保存 outline.json，更新 session.json |
 | `select_template` | 大纲确认后 | 简短确认 | 保存 style_spec.json，更新 session.json |
 | `list_templates` | 用户主动要求 | 模板列表 | 无 |
 | `generate_slides` | 模板确认后 | 文件路径列表 | 并发 LLM 调用，保存 HTML，更新 session.json |
@@ -133,6 +133,7 @@ IDLE → OUTLINE_DONE → TEMPLATE_DONE → SLIDES_DONE → EXPORTED
 
 ```python
 class SessionState(BaseModel):
+    session_id: str
     step: PipelineStep
     title: str
     outline_file: str
@@ -140,23 +141,44 @@ class SessionState(BaseModel):
     slides_dir: str
     pptx_file: str
     template_key: str
+    created_at: str
 ```
 
 每次 tool 执行后更新 `session.json`，确保各 tool 间的数据流转有据可查，不依赖隐式文件命名约定。
 
-### 4.3 大纲校验
+### 4.3 SessionIndex（会话索引）
 
 ```python
+class SessionEntry(BaseModel):
+    session_id: str
+    title: str
+    step: PipelineStep
+    template_key: str
+    created_at: str
+```
+
+所有会话记录在 `output/index.json` 中，前端可通过 `SessionIndex.list_all()` 获取完整列表。
+
+### 4.4 大纲校验
+
+```python
+class KeyPoint(BaseModel):
+    text: str                                    # 完整陈述（必填）
+    sub_points: list[str] = []                   # 可选子要点
+    emphasis: Literal["high", "medium", "low"] = "medium"
+
 class SlideItem(BaseModel):
     page: int = Field(ge=1)
     layout: Literal["cover", "toc", "content", "section", "ending"]
     title: str
-    key_points: list[str] = Field(default_factory=list)
+    key_points: list[KeyPoint] = Field(default_factory=list)
 
 class Outline(BaseModel):
     title: str
     slides: list[SlideItem]  # 不能为空
 ```
+
+`KeyPoint` 支持**灵活层级**：简单内容保持扁平（只有 text），复杂内容用 `sub_points` 展开说明。`emphasis` 标记重点，影响幻灯片视觉呈现。向后兼容旧的字符串列表格式（自动转为 `KeyPoint(text=item)`）。
 
 重试时将 `ValidationError` 的具体错误信息反馈给 LLM，提高修复率。
 
@@ -174,7 +196,18 @@ class Outline(BaseModel):
 
 ### 5.2 Style Spec 结构
 
-每个模板包含 `style_spec.json`，定义配色、字体、间距、组件样式。
+每个模板包含 `style_spec.json`，定义配色、字体、间距、组件样式、**三级强调样式**。
+
+```json
+{
+  "emphasis": {
+    "high": { "font_size": "24px", "color": "#ed8936", "font_weight": "bold" },
+    "medium": { "font_size": "20px", "color": "#2d3748", "font_weight": "normal" },
+    "low": { "font_size": "16px", "color": "#a0aec0", "font_weight": "normal" }
+  },
+  "component_styles": { ... }
+}
+```
 
 ### 5.3 布局类型
 
@@ -202,15 +235,15 @@ ppt-agent/
 ├── .env.example
 │
 ├── src/ppt_agent/
-│   ├── main.py                 # CLI 入口（async, 单 event loop）
-│   ├── config.py               # Pydantic Settings + 并发配置
+│   ├── main.py                 # CLI 入口（会话隔离 + contextvar）
+│   ├── config.py               # Pydantic Settings + 并发配置 + 会话目录 contextvar
 │   ├── llm.py                  # get_model() 工厂函数
 │   │
 │   ├── agent/
 │   │   ├── agent.py            # create_deep_agent 定义
 │   │   ├── prompts.py          # 主 Agent 系统提示词
 │   │   ├── subagents.py        # （保留备用）
-│   │   └── state.py            # Outline + SessionState + PipelineStep
+│   │   └── state.py            # KeyPoint + Outline + SessionState + SessionIndex + PipelineStep
 │   │
 │   ├── tools/
 │   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试）
@@ -238,7 +271,7 @@ ppt-agent/
 │   └── api/
 │
 └── tests/
-    ├── test_tools.py           # 17 个测试（模板、工具、校验、状态）
+    ├── test_tools.py           # 20 个测试（模板、工具、校验、状态、会话索引）
     └── test_renderer.py        # 渲染和 PPTX 管线测试
 ```
 
@@ -257,8 +290,12 @@ ppt-agent/
 - [x] Playwright 2x 截图 + python-pptx 导出
 - [x] 4 个 LLM 提供商
 - [x] Outline Pydantic 校验 + 结构化重试
+- [x] KeyPoint 层级模型（text + sub_points + emphasis）
 - [x] SessionState 状态机
-- [x] 17 个单元测试
+- [x] 会话隔离（每次生成独立目录，contextvars 传递会话上下文）
+- [x] SessionIndex 会话索引（index.json，前端可读取列表）
+- [x] 三级强调样式（模板 emphasis 定义）
+- [x] 20 个单元测试
 - [x] Debug 输出（TOOL 调用/结果追踪）
 
 ### 8.2 待开发
@@ -314,3 +351,18 @@ ppt-agent/
 
 **选择**：`browser_context()` 上下文管理器，一次启动 Chromium 供所有截图复用。
 **原因**：每次启动浏览器约 1-2 秒，N 页 PPT 串行启动 N 次是性能瓶颈。
+
+### 9.9 会话隔离（contextvars + 独立目录）
+
+**选择**：每次 PPT 生成创建独立目录 `output/{session_id}/`，通过 `contextvars.ContextVar` 传递当前会话目录，tools 用 `get_session_dir()` 读取。
+**原因**：防止不同 PPT 生成之间的内容泄露（对话历史、文件残留），同时保留所有历史记录供前端展示。`contextvars` 是 async 安全的，不改变 tool 签名，main.py 在每次 agent 调用前设置。
+
+### 9.10 KeyPoint 灵活层级模型
+
+**选择**：`KeyPoint` 包含 `text`（必填）、`sub_points`（可选）、`emphasis`（可选），而非固定深度结构。
+**原因**：不同 PPT 的内容复杂度差异大。简单页面保持扁平，复杂页面用 `sub_points` 展开。强调级别（high/medium/low）控制视觉层次，让幻灯片有重点而非平铺罗列。向后兼容旧的字符串列表格式。
+
+### 9.11 Agent 主动收集内容素材
+
+**选择**：主 Agent 确认主题时，在一轮对话中同时收集受众、核心信息、数据/案例。
+**原因**：即使后续支持文件上传和联网搜索，用户也可能只输入一个简短主题。Agent 主动收集素材是大纲质量的基础，与搜索/上传功能互补不冲突。

@@ -29,6 +29,11 @@
     "card_shadow": "box-shadow: 0 1px 4px rgba(0,0,0,0.06)",
     "header_bar": "height: 50px, background: #2d3748"
   },
+  "emphasis": {
+    "high": { "font_size": "24px", "color": "#2d3748", "font_weight": "bold", "background": "background: #ebf8ff; border-left: 4px solid #3182ce; padding: 6px 12px" },
+    "medium": { "font_size": "20px", "color": "#1a202c", "font_weight": "normal" },
+    "low": { "font_size": "16px", "color": "#a0aec0", "font_weight": "normal" }
+  },
   "component_styles": {
     "cover": "深灰背景（#2d3748），白色大标题偏左上，右侧可用蓝色装饰条或数据图形元素，底部有日期/作者信息",
     "toc": "白色背景，顶部深灰标题栏（50px），目录使用两列布局或带页码的列表",

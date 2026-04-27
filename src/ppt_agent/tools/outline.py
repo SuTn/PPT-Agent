@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from pydantic import ValidationError
 
 from ppt_agent.agent.state import Outline, SessionState, PipelineStep
-from ppt_agent.config import settings
+from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.outline import OUTLINE_PROMPT
 
@@ -50,7 +50,7 @@ _RETRY_HINT = (
 
 
 def _state_path() -> Path:
-    return settings.output_dir / "session.json"
+    return get_session_dir() / "session.json"
 
 
 @tool
@@ -95,7 +95,7 @@ def generate_outline(requirements: str, page_count: int = 10) -> str:
         return f"[错误] 大纲生成失败，尝试了 3 次。最后错误：{last_error}\n原始输出：{last_raw[:500]}"
 
     # persist outline
-    outline_path = settings.output_dir / "outline.json"
+    outline_path = get_session_dir() / "outline.json"
     outline_path.parent.mkdir(parents=True, exist_ok=True)
     with open(outline_path, "w", encoding="utf-8") as f:
         json.dump(outline.model_dump(), f, ensure_ascii=False, indent=2)

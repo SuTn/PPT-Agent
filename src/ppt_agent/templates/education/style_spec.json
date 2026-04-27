@@ -27,6 +27,11 @@
     "card_shadow": "box-shadow: 0 2px 8px rgba(0,0,0,0.08)",
     "rounded": "8px"
   },
+  "emphasis": {
+    "high": { "font_size": "24px", "color": "#22543d", "font_weight": "bold", "background": "background: #f0fff4; border-left: 4px solid #38a169; padding: 4px 12px" },
+    "medium": { "font_size": "22px", "color": "#2d3748", "font_weight": "normal" },
+    "low": { "font_size": "18px", "color": "#a0aec0", "font_weight": "normal" }
+  },
   "component_styles": {
     "cover": "浅绿色背景（#f0fff4），左侧有绿色装饰条（宽 8px），标题使用深绿色，右侧可放装饰性书本或灯泡图标（用 CSS 或 emoji）",
     "toc": "白色卡片背景，左侧绿色装饰条，目录使用绿色编号圆圈 + 章节名",

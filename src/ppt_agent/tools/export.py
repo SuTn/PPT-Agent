@@ -1,12 +1,11 @@
 import asyncio
 import glob
-import uuid
 from pathlib import Path
 
 from langchain_core.tools import tool
 
 from ppt_agent.agent.state import SessionState, PipelineStep
-from ppt_agent.config import settings
+from ppt_agent.config import get_session_dir, settings
 from ppt_agent.export.renderer import browser_context, render_html_to_png
 from ppt_agent.export.pptx_builder import build_pptx
 
@@ -16,18 +15,20 @@ async def export_pptx(slides_dir: str = "") -> str:
     """将生成的 HTML 幻灯片转换为 PPTX 文件。
 
     Args:
-        slides_dir: 幻灯片 HTML 文件所在目录。默认使用 output/slides。
+        slides_dir: 幻灯片 HTML 文件所在目录。默认使用当前会话的 slides/ 目录。
     """
+    session_dir = get_session_dir()
     if not slides_dir:
-        slides_dir = str(settings.output_dir / "slides")
+        slides_dir = str(session_dir / "slides")
 
     html_files = sorted(glob.glob(str(Path(slides_dir) / "*.html")))
     if not html_files:
         return f"未找到 HTML 文件: {slides_dir}"
 
-    pptx_dir = settings.output_dir / "pptx"
-    pptx_dir.mkdir(parents=True, exist_ok=True)
-    pptx_path = pptx_dir / f"presentation_{uuid.uuid4().hex[:8]}.pptx"
+    # Use session title for filename, fallback to session_id
+    state = SessionState.load(session_dir / "session.json")
+    filename = (state.title or state.session_id).replace("/", "_").replace(" ", "_")
+    pptx_path = session_dir / f"{filename}.pptx"
 
     sem = asyncio.Semaphore(settings.render_concurrency)
 
@@ -43,9 +44,8 @@ async def export_pptx(slides_dir: str = "") -> str:
     build_pptx(sorted(pngs), pptx_path)
 
     # update session state
-    state = SessionState.load(settings.output_dir / "session.json")
     state.step = PipelineStep.EXPORTED
     state.pptx_file = str(pptx_path)
-    state.save(settings.output_dir / "session.json")
+    state.save(session_dir / "session.json")
 
     return f"PPTX 已导出: {pptx_path}"

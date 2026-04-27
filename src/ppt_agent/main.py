@@ -1,10 +1,14 @@
 import asyncio
+import uuid
+from datetime import datetime, timezone
+
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphInterrupt
 from langgraph.types import Command
 
 from ppt_agent.agent.agent import create_ppt_agent
-from ppt_agent.config import settings
+from ppt_agent.agent.state import PipelineStep, SessionEntry, SessionIndex, SessionState
+from ppt_agent.config import _current_session_dir, settings
 
 
 def _print_new_messages(result: dict, seen: set) -> set:
@@ -28,14 +32,37 @@ def _print_new_messages(result: dict, seen: set) -> set:
             print(f"\n[TOOL 结果] {msg.name}: {content}")
 
 
+def _create_new_session() -> str:
+    """Create a new session directory and index entry, return the session_id."""
+    session_id = uuid.uuid4().hex[:8]
+    session_dir = settings.output_dir / session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    now = datetime.now(timezone.utc).isoformat()
+    state = SessionState(
+        session_id=session_id,
+        created_at=now,
+    )
+    state.save(session_dir / "session.json")
+
+    index = SessionIndex(settings.output_dir / "index.json")
+    index.add(SessionEntry(
+        session_id=session_id,
+        created_at=now,
+    ))
+
+    return session_id
+
+
 async def cli():
     agent = create_ppt_agent()
-    thread_id = "cli-session"
+    thread_id = str(uuid.uuid4())
     config = {"configurable": {"thread_id": thread_id}}
     seen_ids: set = set()
+    current_session_id: str | None = None
 
     print(f"PPT-Agent (model: {settings.model})")
-    print("输入需求开始制作 PPT，输入 /quit 退出\n")
+    print("输入需求开始制作 PPT，输入 /new 新建，输入 /quit 退出\n")
 
     while True:
         try:
@@ -49,6 +76,40 @@ async def cli():
         if user_input == "/quit":
             print("再见！")
             break
+
+        if user_input == "/new":
+            session_id = _create_new_session()
+            session_dir = settings.output_dir / session_id
+            _current_session_dir.set(session_dir)
+            thread_id = str(uuid.uuid4())
+            config = {"configurable": {"thread_id": thread_id}}
+            seen_ids = set()
+            current_session_id = session_id
+            print(f"[新会话] {session_id}\n")
+            continue
+
+        # Auto-create session if none active
+        if current_session_id is None:
+            # Check if last session was completed (auto-reset scenario)
+            session_id = _create_new_session()
+            session_dir = settings.output_dir / session_id
+            _current_session_dir.set(session_dir)
+            thread_id = str(uuid.uuid4())
+            config = {"configurable": {"thread_id": thread_id}}
+            seen_ids = set()
+            current_session_id = session_id
+        else:
+            # Check if previous PPT was exported — auto-start new session
+            session_dir = settings.output_dir / current_session_id
+            state = SessionState.load(session_dir / "session.json")
+            if state.step == PipelineStep.EXPORTED:
+                session_id = _create_new_session()
+                session_dir = settings.output_dir / session_id
+                _current_session_dir.set(session_dir)
+                thread_id = str(uuid.uuid4())
+                config = {"configurable": {"thread_id": thread_id}}
+                seen_ids = set()
+                current_session_id = session_id
 
         try:
             result = await agent.ainvoke(

@@ -1,3 +1,4 @@
+import contextvars
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -23,3 +24,15 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# ---------------------------------------------------------------------------
+# Per-session output directory — set by main.py before each agent invocation
+# ---------------------------------------------------------------------------
+
+_current_session_dir: contextvars.ContextVar[Path] = contextvars.ContextVar(
+    "session_dir", default=settings.output_dir
+)
+
+
+def get_session_dir() -> Path:
+    return _current_session_dir.get()

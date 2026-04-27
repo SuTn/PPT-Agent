@@ -26,6 +26,11 @@
     "title_bar_height": "6px",
     "title_bar_color": "#2b6cb0"
   },
+  "emphasis": {
+    "high": { "font_size": "24px", "color": "#ed8936", "font_weight": "bold" },
+    "medium": { "font_size": "20px", "color": "#2d3748", "font_weight": "normal" },
+    "low": { "font_size": "16px", "color": "#a0aec0", "font_weight": "normal" }
+  },
   "component_styles": {
     "cover": "深蓝色背景（#1a365d），白色大标题居中，副标题在标题下方 30px，底部有 4px 宽的橙色装饰线（#ed8936）",
     "toc": "白色背景，左侧标题，右侧目录列表，每个条目前有蓝色圆点标记",

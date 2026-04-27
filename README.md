@@ -49,7 +49,14 @@ uv run ppt-agent
 对话确认主题 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
 ```
 
-每步完成后会展示结果，用户确认或提出修改后再继续。
+每步完成后会展示结果，用户确认或提出修改后再继续。输入 `/new` 可随时新建会话。
+
+## CLI 命令
+
+| 命令 | 说明 |
+|------|------|
+| `/new` | 新建会话（之前的 PPT 保留在 output/ 中） |
+| `/quit` | 退出 |
 
 ## 支持的 LLM 提供商
 
@@ -68,6 +75,8 @@ uv run ppt-agent
 - `creative` — 创意设计（渐变 + 不对称布局）
 - `report` — 数据报告（灰白 + 图表元素）
 
+每个模板均定义了三级强调样式（high/medium/low），用于视觉层次控制。
+
 ## 并发配置
 
 | 环境变量 | 默认值 | 说明 |
@@ -83,9 +92,28 @@ uv run pytest tests/ -v
 
 ## 架构
 
-- **主 Agent**：调度 5 个 async tool，管理对话流程
+- **主 Agent**：调度 5 个 async tool，管理对话流程，主动收集受众/核心信息
+- **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构
+- **会话隔离**：每次 PPT 生成独立目录，`contextvars` 传递会话上下文，`SessionIndex` 管理历史
 - **并发生成**：`asyncio.gather()` + `Semaphore` 控制幻灯片生成和渲染并发
 - **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
 - **导出管线**：HTML → Playwright 截图(2x) → python-pptx 嵌入
+
+## 输出目录结构
+
+```
+output/
+├── index.json              # 会话索引（所有 PPT 生成记录）
+├── a1b2c3d4/               # 单个会话目录
+│   ├── session.json        # 会话状态（PipelineStep）
+│   ├── outline.json        # 大纲（KeyPoint 结构）
+│   ├── style_spec.json     # 模板风格规范
+│   ├── slides/             # HTML 幻灯片
+│   │   ├── slide_01_cover.html
+│   │   └── ...
+│   └── {标题}.pptx         # 最终 PPTX
+└── e5f6g7h8/
+    └── ...
+```
 
 详见 [DESIGN.md](DESIGN.md)。

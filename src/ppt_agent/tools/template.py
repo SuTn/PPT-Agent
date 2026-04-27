@@ -3,7 +3,7 @@ import json
 from langchain_core.tools import tool
 
 from ppt_agent.agent.state import SessionState, PipelineStep
-from ppt_agent.config import settings
+from ppt_agent.config import get_session_dir
 from ppt_agent.templates.registry import list_all_templates, load_template
 
 
@@ -33,16 +33,17 @@ def select_template(template_key: str) -> str:
         return str(e)
 
     # persist style_spec
-    spec_path = settings.output_dir / "style_spec.json"
+    session_dir = get_session_dir()
+    spec_path = session_dir / "style_spec.json"
     spec_path.parent.mkdir(parents=True, exist_ok=True)
     with open(spec_path, "w", encoding="utf-8") as f:
         json.dump(spec, f, ensure_ascii=False, indent=2)
 
     # update session state
-    state = SessionState.load(settings.output_dir / "session.json")
+    state = SessionState.load(session_dir / "session.json")
     state.step = PipelineStep.TEMPLATE_DONE
     state.style_spec_file = str(spec_path)
     state.template_key = template_key
-    state.save(settings.output_dir / "session.json")
+    state.save(session_dir / "session.json")
 
     return f"已选择模板「{spec['name']}」，style_spec 已保存。"
