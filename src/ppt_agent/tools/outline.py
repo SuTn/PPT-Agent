@@ -82,9 +82,11 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
         page_count: 期望的幻灯片页数。0 表示根据内容复杂度自行决定（默认）。
         materials: 用户上传的参考材料内容（Markdown 格式）。如果为空，自动从会话目录的 materials.md 读取。
     """
+    session_dir = get_session_dir()
+
     # Auto-read materials.md if not provided
     if not materials:
-        materials_path = get_session_dir() / "materials.md"
+        materials_path = session_dir / "materials.md"
         if materials_path.exists():
             materials = materials_path.read_text(encoding="utf-8")
 
@@ -125,7 +127,7 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
         return f"[错误] 大纲生成失败，尝试了 3 次。最后错误：{last_error}\n原始输出：{last_raw[:500]}"
 
     # persist outline
-    outline_path = get_session_dir() / "outline.json"
+    outline_path = session_dir / "outline.json"
     outline_path.parent.mkdir(parents=True, exist_ok=True)
     with open(outline_path, "w", encoding="utf-8") as f:
         json.dump(outline.model_dump(), f, ensure_ascii=False, indent=2)

@@ -64,13 +64,16 @@
 | 智谱 | `zhipu:glm-4` | `ChatOpenAI(base_url=...)` |
 | VLLM | `vllm:model-name` | `ChatOpenAI(base_url=...)` |
 
-### 2.3 前端（未来）
+### 2.3 前端
 
 | 组件 | 选型 |
 |------|------|
 | 框架 | Vue 3 + TypeScript |
 | 构建 | Vite |
 | 状态管理 | Pinia |
+| HTTP 客户端 | axios |
+| Markdown | marked |
+| 样式 | CSS (scoped) |
 
 ---
 
@@ -273,6 +276,14 @@ ppt-agent/
 │   │   └── style.py
 │   │
 │   └── api/
+│       ├── app.py               # FastAPI 应用 + CORS + 中间件
+│       ├── server.py            # uvicorn 启动入口
+│       ├── deps.py              # 依赖注入（agent 单例）
+│       ├── streaming.py         # SSE 流式生成器
+│       └── routes/
+│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载
+│           ├── templates.py     # 模板查询
+│           └── upload.py        # 文件上传处理
 │
 └── tests/
     ├── test_tools.py           # 23 个测试（模板、工具、校验、状态、会话索引、上传）
@@ -306,13 +317,31 @@ ppt-agent/
 - [x] 23 个单元测试
 - [x] Debug 输出（TOOL 调用/结果追踪）
 
-### 8.2 待开发
+### 8.2 API 服务器
 
-- [ ] 前端界面
+- [x] FastAPI 应用（CORS + 中间件）
+- [x] SSE 流式对话
+- [x] 会话管理（CRUD）
+- [x] 文件上传（multipart）
+- [x] PPTX 下载
+- [x] 模板查询
+- [x] 会话上下文中间件（从 URL 提取 session_id）
+
+### 8.3 前端界面
+
+- [x] Vue 3 + TypeScript 项目结构
+- [x] Pinia 状态管理（sessions store + session store）
+- [x] SSE 实时流式展示
+- [x] Markdown 渲染（marked）
+- [x] 文件上传（drag & drop）
+- [x] 会话管理（创建、列表、删除、切换）
+- [x] 响应式设计
+
+### 8.4 待开发
+
 - [ ] 联网搜索/研究
 - [ ] AI 自定义风格生成
 - [ ] PDF 导出
-- [ ] 流式输出
 - [ ] 更多提供商
 
 ---
@@ -364,27 +393,32 @@ ppt-agent/
 **选择**：每次 PPT 生成创建独立目录 `output/{session_id}/`，通过 `contextvars.ContextVar` 传递当前会话目录，tools 用 `get_session_dir()` 读取。
 **原因**：防止不同 PPT 生成之间的内容泄露（对话历史、文件残留），同时保留所有历史记录供前端展示。`contextvars` 是 async 安全的，不改变 tool 签名，main.py 在每次 agent 调用前设置。
 
-### 9.10 KeyPoint 灵活层级模型
+### 9.10 会话上下文传播（URL 解析 + SSE generator 显式设置）
+
+**选择**：API 中间件从 URL 路径手动提取 `session_id`（`/api/v1/sessions/{session_id}/...`），在 SSE 流式生成器中显式设置 `_current_session_dir` contextvar。
+**原因**：FastAPI 中间件在路由匹配之前执行，`request.path_params` 此时为空。异步 generator 中 contextvar 不会自动传播，必须在 agent 调用前显式设置并在 finally 中重置。
+
+### 9.11 KeyPoint 灵活层级模型
 
 **选择**：`KeyPoint` 包含 `text`（必填）、`sub_points`（可选）、`emphasis`（可选），而非固定深度结构。
 **原因**：不同 PPT 的内容复杂度差异大。简单页面保持扁平，复杂页面用 `sub_points` 展开。强调级别（high/medium/low）控制视觉层次，让幻灯片有重点而非平铺罗列。向后兼容旧的字符串列表格式。
 
-### 9.11 Agent 主动收集内容素材
+### 9.12 Agent 主动收集内容素材
 
 **选择**：主 Agent 确认主题时，在一轮对话中同时收集受众、核心信息、数据/案例。
 **原因**：即使后续支持文件上传和联网搜索，用户也可能只输入一个简短主题。Agent 主动收集素材是大纲质量的基础，与搜索/上传功能互补不冲突。
 
-### 9.12 文件上传独立 tool + materials.md
+### 9.13 文件上传独立 tool + materials.md
 
 **选择**：`upload_and_parse` 作为独立 tool，解析结果保存为 `materials.md`，`generate_outline` 通过 `materials` 参数独立读取。
 **原因**：模块间更独立，upload 和 outline 解耦。支持多文件上传追加到同一 materials.md。大纲生成自动从会话目录读取 materials.md，也可通过参数直接传入。
 
-### 9.13 asyncio.gather return_exceptions 容错
+### 9.14 asyncio.gather return_exceptions 容错
 
 **选择**：幻灯片生成和渲染的 `asyncio.gather()` 均使用 `return_exceptions=True`，捕获异常后跳过失败项并报告。
 **原因**：N 页 PPT 中单页 LLM 调用失败（限流、超时、格式错误）或渲染失败（浏览器崩溃）不应导致整体崩溃。失败信息汇总返回给用户，方便定位问题。
 
-### 9.14 平衡花括号匹配提取 JSON
+### 9.15 平衡花括号匹配提取 JSON
 
 **选择**：`_extract_json` 的回退方案使用平衡花括号计数，替代贪婪正则 `r"\{.*\}"`。
 **原因**：贪婪正则会从第一个 `{` 匹配到最后一个 `}`，LLM 返回 JSON 前后的解释文本中包含花括号时会导致匹配范围错误。平衡匹配更精确，同时正确处理 JSON 字符串内的转义花括号。

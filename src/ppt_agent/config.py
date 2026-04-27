@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
     zhipu_api_key: str = ""
 
+    # API server
+    api_host: str = "0.0.0.0"
+    api_port: int = 9999
+
 
 settings = Settings()
 

@@ -12,7 +12,9 @@ from ppt_agent.tools.export import export_pptx
 from ppt_agent.tools.upload import upload_and_parse
 
 
-def create_ppt_agent():
+def create_ppt_agent(checkpointer=None):
+    if checkpointer is None:
+        checkpointer = MemorySaver()
     return create_deep_agent(
         model=get_model(),
         system_prompt=SYSTEM_PROMPT,
@@ -24,6 +26,6 @@ def create_ppt_agent():
             export_pptx,
             upload_and_parse,
         ],
-        checkpointer=MemorySaver(),
+        checkpointer=checkpointer,
         backend=FilesystemBackend(root_dir=str(settings.output_dir)),
     )

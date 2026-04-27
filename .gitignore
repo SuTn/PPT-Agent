@@ -16,6 +16,11 @@ build/
 # Output (generated files)
 output/
 
+# Frontend
+web/node_modules/
+web/dist/
+web/.vite/
+
 # IDE & tools
 .idea/
 .vscode/
