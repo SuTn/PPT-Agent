@@ -4,6 +4,7 @@ from deepagents.backends import FilesystemBackend
 from ppt_agent.agent.prompts import SYSTEM_PROMPT
 from ppt_agent.config import settings
 from ppt_agent.llm import get_model
+from ppt_agent.tools.research import research_topic
 from ppt_agent.tools.outline import generate_outline
 from ppt_agent.tools.slide_gen import generate_slides
 from ppt_agent.tools.template import list_templates, select_template
@@ -16,6 +17,7 @@ def create_ppt_agent(checkpointer):
         model=get_model(),
         system_prompt=SYSTEM_PROMPT,
         tools=[
+            research_topic,
             generate_outline,
             select_template,
             list_templates,

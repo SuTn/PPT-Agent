@@ -10,47 +10,44 @@ from pydantic import BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
-# Outline schema (P2: structural validation)
+# Outline schema — research-driven structure with narrative & evidence
 # ---------------------------------------------------------------------------
 
-class KeyPoint(BaseModel):
-    text: str
-    sub_points: list[str] = Field(default_factory=list)
-    emphasis: Literal["high", "medium", "low"] = "medium"
+class Evidence(BaseModel):
+    claim: str
+    evidence_type: Literal["data", "case_study", "quote", "analysis", "analogy"]
+    detail: str = ""
+    source: str = ""
 
-    @field_validator("sub_points", mode="before")
-    @classmethod
-    def ensure_list(cls, v):
-        return v if isinstance(v, list) else []
 
-    @field_validator("text", mode="before")
-    @classmethod
-    def allow_string(cls, v):
-        return v if isinstance(v, str) else str(v)
+class SupportingPoint(BaseModel):
+    message: str
+    evidence: list[Evidence] = []
 
 
 class SlideItem(BaseModel):
     page: int = Field(ge=1)
     layout: Literal["cover", "toc", "content", "section", "ending"]
-    title: str
-    key_points: list[KeyPoint] = Field(default_factory=list)
+    headline: str                                 # Action Title — complete sentence
+    body_text: str = ""
+    supporting_points: list[SupportingPoint] = Field(default_factory=list)
+    speaker_notes: str = ""
+    section: str = ""                             # narrative role: situation/complication/...
 
-    @field_validator("key_points", mode="before")
-    @classmethod
-    def coerce_keypoints(cls, v):
-        if not isinstance(v, list):
-            return []
-        coerced = []
-        for item in v:
-            if isinstance(item, str):
-                coerced.append(KeyPoint(text=item))
-            elif isinstance(item, dict):
-                coerced.append(KeyPoint.model_validate(item))
-        return coerced
+
+class NarrativeFramework(BaseModel):
+    framework: Literal["scqa", "problem_solution", "chronological", "custom"] = "scqa"
+    situation: str = ""
+    complication: str = ""
+    core_question: str = ""
+    core_answer: str = ""
 
 
 class Outline(BaseModel):
     title: str
+    audience: str = ""
+    objective: Literal["persuade", "report", "educate", "inspire"] = "report"
+    narrative: NarrativeFramework = Field(default_factory=NarrativeFramework)
     slides: list[SlideItem]
 
     @field_validator("slides")
@@ -62,11 +59,12 @@ class Outline(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Session state (P2: explicit file protocol)
+# Session state — explicit file protocol
 # ---------------------------------------------------------------------------
 
 class PipelineStep(str, Enum):
     IDLE = "idle"
+    RESEARCH_DONE = "research_done"
     OUTLINE_DONE = "outline_done"
     TEMPLATE_DONE = "template_done"
     SLIDES_DONE = "slides_done"
@@ -77,6 +75,7 @@ class SessionState(BaseModel):
     session_id: str = ""
     step: PipelineStep = PipelineStep.IDLE
     title: str = ""
+    research_file: str = ""
     outline_file: str = ""
     style_spec_file: str = ""
     slides_dir: str = ""

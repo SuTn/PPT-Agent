@@ -37,6 +37,7 @@
       </template>
       <template v-else>
         <OutlinePreview v-if="isOutlineResult(msg)" :outline="parseOutline(msg.content)" />
+        <ResearchPreview v-else-if="isResearchResult(msg) && props.researchNotes" :content="props.researchNotes" />
         <div v-else class="system-notice">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.2"/>
@@ -59,10 +60,12 @@ import { marked } from "marked";
 import DOMPurify from "dompurify";
 import type { Message } from "../api/types";
 import OutlinePreview from "./OutlinePreview.vue";
+import ResearchPreview from "./ResearchPreview.vue";
 
 const props = defineProps<{
   messages: Message[];
   isStreaming: boolean;
+  researchNotes?: string;
 }>();
 
 defineEmits<{
@@ -76,6 +79,7 @@ const suggestions = [
 ];
 
 const TOOL_LABELS: Record<string, string> = {
+  research_topic: "正在研究主题...",
   generate_outline: "正在生成大纲...",
   select_template: "正在选择模板...",
   list_templates: "正在获取模板列表...",
@@ -85,6 +89,7 @@ const TOOL_LABELS: Record<string, string> = {
 };
 
 const COMPLETED_LABELS: Record<string, string> = {
+  research_topic: "研究完成",
   generate_outline: "大纲已生成",
   select_template: "模板已选择",
   list_templates: "模板列表已获取",
@@ -125,6 +130,10 @@ function scrollToBottom() {
 
 function isOutlineResult(msg: Message): boolean {
   return msg.toolResult === true && msg.content.startsWith("[generate_outline]");
+}
+
+function isResearchResult(msg: Message): boolean {
+  return msg.toolResult === true && msg.content.startsWith("[research_topic]");
 }
 
 function parseOutline(content: string): any {

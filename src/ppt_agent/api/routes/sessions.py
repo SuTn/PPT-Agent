@@ -151,6 +151,18 @@ async def get_slide_file(session_id: str, filename: str):
     return FileResponse(str(file_path))
 
 
+@router.get("/{session_id}/research")
+async def get_research_notes(session_id: str):
+    session_dir = settings.output_dir / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    notes_path = session_dir / "research_notes.md"
+    if not notes_path.exists():
+        raise HTTPException(status_code=404, detail="Research notes not found")
+    content = notes_path.read_text(encoding="utf-8")
+    return {"content": content}
+
+
 def _validate_session(session_id: str):
     session_dir = settings.output_dir / session_id
     if not session_dir.exists():

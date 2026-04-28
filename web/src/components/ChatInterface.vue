@@ -19,7 +19,7 @@
       </div>
     </header>
     <PipelineStepper :current-step="sessionStore.pipelineStep" />
-    <MessageList :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" @send="onSend" />
+    <MessageList :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" :research-notes="sessionStore.researchNotes" @send="onSend" />
     <TemplateSelector
       v-if="showTemplateSelector"
       @select="onTemplateSelect"

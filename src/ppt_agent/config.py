@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     output_dir: Path = Path("./output")
 
     # Concurrency limits
+    research_concurrency: int = 3
     slide_concurrency: int = 3
     render_concurrency: int = 5
 

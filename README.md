@@ -62,7 +62,7 @@ npm run dev
 ## 工作流程
 
 ```
-对话确认主题 → [可选] 上传文件 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
+对话确认主题 → [可选] 上传文件 → [可选] 深度研究 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
 ```
 
 每步完成后会展示结果，用户确认或提出修改后再继续。页数默认由 LLM 根据内容复杂度自适应决定。
@@ -119,17 +119,19 @@ uv run pytest tests/ -v
 | `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话 |
 | `/api/v1/sessions/{id}/upload` | POST | 上传文件 |
 | `/api/v1/sessions/{id}/download` | GET | 下载 PPTX |
+| `/api/v1/sessions/{id}/research` | GET | 获取研究笔记 |
 | `/api/v1/sessions/{id}/slides` | GET | 获取幻灯片文件列表 |
 | `/api/v1/sessions/{id}/slides/{filename}` | GET | 获取幻灯片文件（HTML/PNG） |
 | `/api/v1/templates` | GET | 获取模板列表 |
 
 ## 架构
 
-- **主 Agent**：调度 6 个 async tool，管理对话流程，主动收集受众/核心信息
+- **主 Agent**：调度 7 个 async tool，管理对话流程，主动收集受众/核心信息
+- **深度研究**：`research_topic` 对主题进行多维度分析（3 步 LLM 调用），生成 `research_notes.md` 作为大纲生成的素材输入，agent 根据主题复杂度自主决定是否调用
 - **API 层**：FastAPI 实现 SSE 流式对话、会话管理、文件上传、模板查询
-- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 进度条 + 大纲结构化展示 + 模板卡片 + 幻灯片预览
+- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 6 步进度条 + 研究笔记折叠展示 + 大纲结构化展示 + 模板卡片 + 幻灯片预览 + 标签栏通知
 - **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
-- **内容质量**：`KeyPoint` 模型支持灵活层级（text + sub_points + emphasis），大纲根据内容复杂度智能决定结构和页数
+- **内容质量**：SCQA 叙事框架 + Action Title（结论先行）+ SupportingPoint/Evidence 论据层次结构，大纲根据内容复杂度智能决定结构和页数
 - **会话隔离**：每次 PPT 生成独立目录，`contextvars` + 中间件传递会话上下文，`SessionIndex` 管理历史
 - **对话持久化**：SQLite 持久化 agent 对话历史，重启后前端可恢复历史会话
 - **容错机制**：`asyncio.gather(return_exceptions=True)` 单页失败不影响整体；HTML 有效性校验；PPTX 嵌入异常跳过
@@ -145,9 +147,10 @@ output/
 ├── checkpoints.db          # SQLite 对话历史持久化
 ├── a1b2c3d4/               # 单个会话目录
 │   ├── session.json        # 会话状态（PipelineStep）
-│   ├── outline.json        # 大纲（KeyPoint 结构）
+│   ├── outline.json        # 大纲（NarrativeFramework + SupportingPoint + Evidence 结构）
 │   ├── style_spec.json     # 模板风格规范
 │   ├── materials.md        # 上传材料（Markdown 格式，可选）
+│   ├── research_notes.md   # 研究笔记（多维度深度分析，可选）
 │   ├── slides/             # HTML 幻灯片
 │   │   ├── slide_01_cover.html
 │   │   └── ...

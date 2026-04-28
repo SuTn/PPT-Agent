@@ -10,11 +10,12 @@
 ### 1.1 核心流程
 
 ```
-用户对话 → [需求讨论] → [大纲生成] → [风格选择] → [幻灯片生成] → [导出 PPTX]
-               tool           tool          tool        async tool         async tool
+用户对话 → [需求讨论] → [深度研究] → [大纲生成] → [风格选择] → [幻灯片生成] → [导出 PPTX]
+               tool        async tool      tool          tool        async tool         async tool
+                            (可选)
 ```
 
-用户可随时对话、修改、补充，整个流程是**状态机**而非线性管道。
+用户可随时对话、修改、补充，整个流程是**状态机**而非线性管道。研究阶段由 agent 根据主题复杂度自主决定是否调用。
 
 ### 1.2 各阶段职责
 
@@ -22,7 +23,8 @@
 |------|----------|------|------|----------|
 | **需求讨论** | 主 Agent 对话 | 用户消息 | 确认的主题/风格/受众/核心信息 | 0 次（纯对话） |
 | **文件上传** | `upload_and_parse` tool | 文件路径 | materials.md | 0 次 |
-| **大纲生成** | `generate_outline` tool | 主题、materials | outline.json（Pydantic 校验） | 1 次（含重试） |
+| **深度研究** | `research_topic` tool | 主题、requirements | research_notes.md | 3+ 次（分析+并发维度研究+综合） |
+| **大纲生成** | `generate_outline` tool | 主题、materials、research_notes | outline.json（Pydantic 校验） | 1 次（含重试） |
 | **风格选择** | `select_template` tool | 模板名 | style_spec.json | 0 次 |
 | **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件 | N 次（并发） |
 | **导出** | `export_pptx` tool | slides/ 目录 | .pptx 文件 | 0 次 |
@@ -35,6 +37,7 @@
 
 | 阶段 | 配置项 | 默认值 | 实现 |
 |------|--------|--------|------|
+| 维度研究 | `PPT_AGENT_RESEARCH_CONCURRENCY` | 3 | `asyncio.Semaphore` |
 | 幻灯片生成 | `PPT_AGENT_SLIDE_CONCURRENCY` | 3 | `asyncio.Semaphore` |
 | PNG 渲染 | `PPT_AGENT_RENDER_CONCURRENCY` | 5 | `asyncio.Semaphore` |
 
@@ -87,6 +90,7 @@ agent = create_deep_agent(
     model=get_model(),
     system_prompt=SYSTEM_PROMPT,
     tools=[
+        research_topic,        # 深度研究（3 步 LLM，可选）
         generate_outline,      # 大纲生成（含重试 + Pydantic 校验）
         select_template,       # 模板选择
         list_templates,        # 查看模板列表
@@ -106,7 +110,8 @@ agent = create_deep_agent(
 | Tool | 触发时机 | 输出 | 副作用 |
 |------|----------|------|--------|
 | `upload_and_parse` | 用户上传文件 | 解析确认 + 内容预览 | 保存 materials.md，注入 HumanMessage 到对话 |
-| `generate_outline` | 主题确认后 | 大纲 JSON（KeyPoint 结构） | 保存 outline.json，更新 session.json |
+| `research_topic` | 主题确认后，复杂主题时 Agent 自主调用 | 研究完成确认 | 保存 research_notes.md，更新 session.json |
+| `generate_outline` | 主题确认后（研究后如有） | 大纲 JSON（NarrativeFramework + SupportingPoint 结构） | 保存 outline.json，更新 session.json |
 | `select_template` | 大纲确认后 | 简短确认 | 保存 style_spec.json，更新 session.json |
 | `list_templates` | 用户主动要求 | 模板列表 | 无 |
 | `generate_slides` | 模板确认后 | 文件路径列表 + 失败警告 | 并发 LLM 调用，保存 HTML，更新 session.json |
@@ -124,6 +129,7 @@ class Settings(BaseSettings):
     zhipu_api_key: str = ""
     slide_concurrency: int = 3
     render_concurrency: int = 5
+    research_concurrency: int = 3
 ```
 
 ---
@@ -133,7 +139,7 @@ class Settings(BaseSettings):
 ### 4.1 PipelineStep 枚举
 
 ```
-IDLE → OUTLINE_DONE → TEMPLATE_DONE → SLIDES_DONE → EXPORTED
+IDLE → RESEARCH_DONE → OUTLINE_DONE → TEMPLATE_DONE → SLIDES_DONE → EXPORTED
 ```
 
 ### 4.2 SessionState 结构
@@ -148,6 +154,7 @@ class SessionState(BaseModel):
     slides_dir: str
     pptx_file: str
     template_key: str
+    research_file: str = ""
     created_at: str
 ```
 
@@ -169,23 +176,41 @@ class SessionEntry(BaseModel):
 ### 4.4 大纲校验
 
 ```python
-class KeyPoint(BaseModel):
-    text: str                                    # 完整陈述（必填）
-    sub_points: list[str] = []                   # 可选子要点
-    emphasis: Literal["high", "medium", "low"] = "medium"
+class Evidence(BaseModel):
+    claim: str
+    evidence_type: Literal["data", "case_study", "quote", "analysis", "analogy"]
+    detail: str = ""
+    source: str = ""
+
+class SupportingPoint(BaseModel):
+    message: str
+    evidence: list[Evidence] = []
+
+class NarrativeFramework(BaseModel):
+    framework: Literal["scqa", "problem_solution", "chronological", "custom"] = "scqa"
+    situation: str = ""
+    complication: str = ""
+    core_question: str = ""
+    core_answer: str = ""
 
 class SlideItem(BaseModel):
     page: int = Field(ge=1)
     layout: Literal["cover", "toc", "content", "section", "ending"]
-    title: str
-    key_points: list[KeyPoint] = Field(default_factory=list)
+    headline: str                                  # Action Title，完整陈述句
+    body_text: str = ""
+    supporting_points: list[SupportingPoint] = []
+    speaker_notes: str = ""
+    section: str = ""
 
 class Outline(BaseModel):
     title: str
     slides: list[SlideItem]  # 不能为空
+    audience: str = ""
+    objective: Literal["persuade", "report", "educate", "inspire"] = "report"
+    narrative: NarrativeFramework = Field(default_factory=NarrativeFramework)
 ```
 
-`KeyPoint` 支持**灵活层级**：简单内容保持扁平（只有 text），复杂内容用 `sub_points` 展开说明。`emphasis` 标记重点，影响幻灯片视觉呈现。向后兼容旧的字符串列表格式（自动转为 `KeyPoint(text=item)`）。
+`SlideItem.headline` 使用 Action Title 模式（完整陈述句而非主题标签），`SupportingPoint` + `Evidence` 提供论据层次结构（含证据类型标注）。`NarrativeFramework` 支持 SCQA 等叙事框架，为演示文稿提供叙事线索。
 
 重试时将 `ValidationError` 的具体错误信息反馈给 LLM，提高修复率。
 
@@ -251,10 +276,11 @@ ppt-agent/
 │   │   ├── agent.py            # create_deep_agent 定义
 │   │   ├── prompts.py          # 主 Agent 系统提示词
 │   │   ├── subagents.py        # （保留备用）
-│   │   └── state.py            # KeyPoint + Outline + SessionState + SessionIndex + PipelineStep
+│   │   └── state.py            # Evidence + SupportingPoint + NarrativeFramework + Outline + SessionState + PipelineStep
 │   │
 │   ├── tools/
-│   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试 + materials）
+│   │   ├── research.py         # research_topic（3 步 LLM 分析+并发维度研究+综合）
+│   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试 + materials + research_notes）
 │   │   ├── template.py         # select_template / list_templates
 │   │   ├── slide_gen.py        # generate_slides（并发 LLM 调用 + 容错）
 │   │   ├── export.py           # export_pptx（并发截图 + 容错）
@@ -273,6 +299,7 @@ ppt-agent/
 │   │   └── pptx_builder.py     # python-pptx 组装
 │   │
 │   ├── prompts/
+│   │   ├── research.py          # 研究提示词（分析+维度研究+综合）
 │   │   ├── outline.py
 │   │   ├── slide.py
 │   │   └── style.py
@@ -283,12 +310,12 @@ ppt-agent/
 │       ├── deps.py              # 依赖注入（agent 单例）
 │       ├── streaming.py         # SSE 流式生成器
 │       └── routes/
-│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载 + 幻灯片预览
+│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载 + 幻灯片预览 + 研究笔记查询
 │           ├── templates.py     # 模板查询
 │           └── upload.py        # 文件上传处理
 │
 └── tests/
-    ├── test_tools.py           # 23 个测试（模板、工具、校验、状态、会话索引、上传）
+    ├── test_tools.py           # 35 个测试（模板、工具、校验、状态、会话索引、上传、研究）
     └── test_renderer.py        # 渲染和 PPTX 管线测试
 ```
 
@@ -310,8 +337,9 @@ web/
 │   │   ├── MessageList.vue      # 消息列表（Markdown + DOMPurify + 工具卡片）
 │   │   ├── InputBar.vue         # 输入栏
 │   │   ├── FileUpload.vue       # 文件上传（拖拽）
-│   │   ├── PipelineStepper.vue  # 5 步流程进度条
-│   │   ├── OutlinePreview.vue   # 大纲结构化展示卡片
+│   │   ├── PipelineStepper.vue  # 6 步流程进度条（含研究步骤）
+│   │   ├── OutlinePreview.vue   # 大纲结构化展示（SCQA + headline + evidence）
+│   │   ├── ResearchPreview.vue  # 研究笔记折叠展示卡片
 │   │   ├── TemplateSelector.vue # 模板选择器
 │   │   ├── TemplateCard.vue     # 模板预览卡片（渐变色条）
 │   │   └── SlidePreview.vue     # 幻灯片缩略图预览
@@ -327,15 +355,18 @@ web/
 ### 8.1 已完成
 
 - [x] CLI 对话入口（单 event loop，async）
-- [x] 6 阶段完整流程（含文件上传）
-- [x] 6 个 async Tools
+- [x] 7 阶段完整流程（含文件上传 + 深度研究）
+- [x] 7 个 async Tools
+- [x] 深度研究（research_topic：3 步 LLM 分析→并发维度研究→综合，Agent 自主决定是否调用）
 - [x] 并发幻灯片生成（Semaphore 控制并发数 + return_exceptions 容错）
 - [x] 并发 PNG 渲染（浏览器复用 + Semaphore + 容错）
 - [x] 5 个预设模板
 - [x] Playwright 2x 截图 + python-pptx 导出
 - [x] 4 个 LLM 提供商
 - [x] Outline Pydantic 校验 + 结构化重试
-- [x] KeyPoint 层级模型（text + sub_points + emphasis）
+- [x] SCQA 叙事框架 + Action Title + Evidence 论据结构
+- [x] NarrativeFramework（SCQA/问题-方案/时间线/自定义）
+- [x] Evidence 类型标注（data/case_study/quote/analysis/analogy）
 - [x] 页数自适应（LLM 根据内容复杂度决定页数，或用户指定）
 - [x] SessionState 状态机（损坏文件自动回退）
 - [x] 会话隔离（每次生成独立目录，contextvars 传递会话上下文）
@@ -343,8 +374,9 @@ web/
 - [x] 三级强调样式（模板 emphasis 定义）
 - [x] 文件上传与解析（markitdown：docx/xlsx/pdf/html/图片等，20MB 限制）
 - [x] 参考材料融入大纲（materials.md 自动读取 + materials 参数传递）
+- [x] 研究笔记融入大纲（research_notes.md 自动读取 + research section 注入）
 - [x] 容错机制（单页生成失败不影响整体、HTML 有效性校验、PPTX 嵌入异常跳过、GraphInterrupt 恢复）
-- [x] 23 个单元测试
+- [x] 35 个单元测试
 - [x] Debug 输出（TOOL 调用/结果追踪）
 
 ### 8.2 API 服务器
@@ -369,8 +401,10 @@ web/
 - [x] 会话管理（创建、列表、删除、切换）
 - [x] 会话历史恢复（从 SQLite checkpointer 加载历史消息 + 大纲恢复）
 - [x] CSS Variables 设计系统（spacing、radius、shadow、状态色、transition）
-- [x] 5 步流程进度条（PipelineStepper：SSE tool_call 实时映射）
-- [x] 大纲结构化展示（OutlinePreview：layout badge、emphasis 色点、key_points 列表）
+- [x] 6 步流程进度条（PipelineStepper：SSE tool_result 实时映射，含研究步骤）
+- [x] 大纲结构化展示（OutlinePreview：SCQA narrative + headline + supporting_points + evidence badges）
+- [x] 研究笔记折叠展示（ResearchPreview：marked + DOMPurify 渲染，可折叠）
+- [x] 浏览器标签栏通知（Notification API + document.title 闪烁，tool 完成时提醒用户）
 - [x] 模板选择卡片（TemplateCard：渐变色条预览 + TemplateSelector 水平滚动）
 - [x] 幻灯片缩略图预览（SlidePreview：可折叠面板 + 点击放大 + 模态框）
 - [x] 工具调用状态卡片（进行中旋转图标 + 完成勾选图标 + 描述文本）
@@ -379,7 +413,7 @@ web/
 
 ### 8.4 待开发
 
-- [ ] 联网搜索/研究
+- [ ] 联网搜索（作为 research_topic 的可选增强）
 - [ ] AI 自定义风格生成
 - [ ] PDF 导出
 - [ ] 更多提供商
@@ -438,10 +472,10 @@ web/
 **选择**：API 中间件从 URL 路径手动提取 `session_id`（`/api/v1/sessions/{session_id}/...`），在 SSE 流式生成器中显式设置 `_current_session_dir` contextvar。
 **原因**：FastAPI 中间件在路由匹配之前执行，`request.path_params` 此时为空。异步 generator 中 contextvar 不会自动传播，必须在 agent 调用前显式设置并在 finally 中重置。
 
-### 9.11 KeyPoint 灵活层级模型
+### 9.11 SCQA 叙事框架 + Action Title + Evidence 结构
 
-**选择**：`KeyPoint` 包含 `text`（必填）、`sub_points`（可选）、`emphasis`（可选），而非固定深度结构。
-**原因**：不同 PPT 的内容复杂度差异大。简单页面保持扁平，复杂页面用 `sub_points` 展开。强调级别（high/medium/low）控制视觉层次，让幻灯片有重点而非平铺罗列。向后兼容旧的字符串列表格式。
+**选择**：大纲数据模型从 `KeyPoint` 重构为 `NarrativeFramework` + `SupportingPoint` + `Evidence` 三层结构，slide `title` 改为 `headline`（Action Title 模式）。
+**原因**：旧 `KeyPoint` 结构过于扁平，缺少叙事线索和论据层次。SCQA（Situation→Complication→Question→Answer）框架为演示提供叙事主线。Action Title 要求每页标题是完整陈述句而非主题标签（参考 McKinsey 金字塔原理）。Evidence 支持多种证据类型（data/case_study/quote/analysis/analogy），提升内容说服力。不做向后兼容，旧 KeyPoint 结构直接废弃。
 
 ### 9.12 Agent 主动收集内容素材
 
@@ -477,3 +511,13 @@ web/
 
 **选择**：CLI 的 `/upload` 命令在解析文件后，将结果作为 `HumanMessage` 注入 agent 对话。
 **原因**：之前 `/upload` 只在控制台打印结果就 `continue`，agent 的 LangGraph 对话历史中没有上传记录，导致 agent 不知道用户上传了材料。注入后 agent 能感知上传内容，配合系统提示词中的上传指引，正确调用 `generate_outline`（自动读取 `materials.md`）。
+
+### 9.19 研究阶段独立 Tool + research_notes.md
+
+**选择**：`research_topic` 作为独立 tool，3 步内部 LLM 调用（分析→并发维度研究→综合），产出 `research_notes.md`。
+**原因**：研究阶段与大纲生成分离，agent 根据主题复杂度自主决定是否调用。3 步设计确保研究深度：先分析确定维度（MECE），再并发研究各维度，最后综合为结构化笔记。`research_notes.md` 作为 `generate_outline` 的输入素材，与 `materials.md` 模式一致。不做联网搜索，纯 LLM 知识驱动。
+
+### 9.20 浏览器标签栏通知
+
+**选择**：tool 完成时通过 Notification API 发送系统通知 + `document.title` 闪烁提醒用户。
+**原因**：PPT 生成耗时较长（研究 30-60s，幻灯片生成数分钟），用户可能切换到其他标签页。Notification API 提供系统级通知（需用户授权），`document.title` 闪烁作为降级方案（1 秒间隔交替显示，10 秒自动停止，用户切回标签页时立即停止）。两种方式互补，确保用户不错过关键节点（研究完成、大纲生成、导就绪）。

@@ -9,14 +9,13 @@ from pydantic import ValidationError
 from ppt_agent.agent.state import Outline, SessionState, PipelineStep
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
-from ppt_agent.prompts.outline import OUTLINE_PROMPT, _materials_section
+from ppt_agent.prompts.outline import OUTLINE_PROMPT, _materials_section, _research_section
 
 
 def _extract_json(text: str) -> str:
     match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
     if match:
         return match.group(1).strip()
-    # Balanced brace matching — find the first '{' and match its closing '}'
     start = text.find("{")
     if start == -1:
         return text.strip()
@@ -72,10 +71,10 @@ def _state_path() -> Path:
 
 @tool
 async def generate_outline(requirements: str, page_count: int = 0, materials: str = "") -> str:
-    """根据用户需求生成 PPT 大纲。
+    """根据用户需求和研究笔记生成 PPT 大纲。
 
     在用户确认了演示主题和需求后调用此工具。生成结构化的大纲 JSON，
-    包含每页的布局类型、标题和要点。
+    包含叙事框架、Action Title、支撑论据和证据。
 
     Args:
         requirements: 用户的演示需求描述，包含主题、受众、关键内容等。
@@ -90,6 +89,12 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
         if materials_path.exists():
             materials = materials_path.read_text(encoding="utf-8")
 
+    # Auto-read research_notes.md
+    research = ""
+    research_path = session_dir / "research_notes.md"
+    if research_path.exists():
+        research = research_path.read_text(encoding="utf-8")
+
     model = get_model()
     if page_count > 0:
         page_instruction = f"- 总页数控制在 {page_count} 页左右"
@@ -100,6 +105,7 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
         requirements=requirements,
         page_instruction=page_instruction,
         materials_section=_materials_section(materials),
+        research_section=_research_section(research),
     )
 
     last_raw = ""

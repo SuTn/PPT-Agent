@@ -19,10 +19,11 @@ const props = defineProps<{
   currentStep: string;
 }>();
 
-const STEP_ORDER = ["idle", "outline_done", "template_done", "slides_done", "exported"];
+const STEP_ORDER = ["idle", "research_done", "outline_done", "template_done", "slides_done", "exported"];
 
 const steps = [
   { key: "idle", label: "开始" },
+  { key: "research_done", label: "研究" },
   { key: "outline_done", label: "大纲" },
   { key: "template_done", label: "模板" },
   { key: "slides_done", label: "幻灯片" },
@@ -38,9 +39,7 @@ function isCompleted(key: string): boolean {
 }
 
 function isCurrent(key: string): boolean {
-  // The current step is the active one if it matches, or the next expected step
-  if (props.currentStep === "idle") return key === "idle";
-  return stepIndex(key) <= stepIndex(props.currentStep) && stepIndex(key) === stepIndex(props.currentStep);
+  return stepIndex(key) === stepIndex(props.currentStep);
 }
 
 function nodeClass(key: string): string {

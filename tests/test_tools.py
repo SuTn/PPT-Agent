@@ -63,66 +63,138 @@ def test_pptx_builder():
         assert dummy_pptx.exists()
 
 
-# --- Outline validation tests ---
+# --- New model validation tests ---
+
+
+def test_evidence_model():
+    from ppt_agent.agent.state import Evidence
+
+    ev = Evidence(claim="CAGR 36.8%", evidence_type="data", detail="Growth rate", source="Gartner")
+    assert ev.claim == "CAGR 36.8%"
+    assert ev.evidence_type == "data"
+    assert ev.source == "Gartner"
+
+    with pytest.raises(ValidationError):
+        Evidence(claim="test", evidence_type="invalid_type")
+
+
+def test_supporting_point_model():
+    from ppt_agent.agent.state import SupportingPoint, Evidence
+
+    sp = SupportingPoint(
+        message="Market is growing fast",
+        evidence=[
+            Evidence(claim="CAGR 36.8%", evidence_type="data"),
+            Evidence(claim="OpenAI case study", evidence_type="case_study"),
+        ],
+    )
+    assert sp.message == "Market is growing fast"
+    assert len(sp.evidence) == 2
+
+    sp_empty = SupportingPoint(message="Simple point")
+    assert sp_empty.evidence == []
+
+
+def test_narrative_framework_scqa():
+    from ppt_agent.agent.state import NarrativeFramework
+
+    nf = NarrativeFramework(
+        framework="scqa",
+        situation="AI market is growing",
+        complication="Competition intensifies",
+        core_question="How to compete?",
+        core_answer="Invest in differentiation",
+    )
+    assert nf.framework == "scqa"
+    assert nf.situation == "AI market is growing"
+
+
+def test_narrative_framework_custom():
+    from ppt_agent.agent.state import NarrativeFramework
+
+    nf = NarrativeFramework(framework="chronological")
+    assert nf.framework == "chronological"
+
+    nf2 = NarrativeFramework()
+    assert nf2.framework == "scqa"  # default
 
 
 def test_outline_valid():
     from ppt_agent.agent.state import Outline
 
     outline = Outline.model_validate({
-        "title": "Test",
+        "title": "AI Market Overview",
+        "audience": "executives",
+        "objective": "persuade",
+        "narrative": {
+            "framework": "scqa",
+            "situation": "AI market growing",
+            "complication": "Competition rising",
+            "core_question": "How to compete?",
+            "core_answer": "Differentiate",
+        },
         "slides": [
-            {"page": 1, "layout": "cover", "title": "封面", "key_points": []},
-            {"page": 2, "layout": "content", "title": "内容", "key_points": ["A", "B"]},
+            {"page": 1, "layout": "cover", "headline": "AI Market Overview 2025"},
+            {"page": 2, "layout": "content", "headline": "Market reached $184B", "supporting_points": []},
         ],
     })
-    assert outline.title == "Test"
+    assert outline.title == "AI Market Overview"
+    assert outline.audience == "executives"
+    assert outline.objective == "persuade"
+    assert outline.narrative.framework == "scqa"
     assert len(outline.slides) == 2
+    assert outline.slides[1].headline == "Market reached $184B"
 
 
-def test_outline_rich_keypoints():
-    from ppt_agent.agent.state import Outline, KeyPoint
+def test_outline_with_supporting_points():
+    from ppt_agent.agent.state import Outline
 
     outline = Outline.model_validate({
-        "title": "Rich",
+        "title": "Deep Dive",
         "slides": [
             {
                 "page": 1,
                 "layout": "content",
-                "title": "核心数据",
-                "key_points": [
+                "headline": "AI market tripled in 3 years",
+                "body_text": "Strong momentum across all segments.",
+                "supporting_points": [
                     {
-                        "text": "市场规模达到 1000 亿",
-                        "emphasis": "high",
-                        "sub_points": ["同比增长 30%", "连续三年高增长"],
+                        "message": "Market size tripled",
+                        "evidence": [
+                            {"claim": "CAGR 36.8%", "evidence_type": "data", "source": "Gartner"},
+                            {"claim": "OpenAI revenue doubled", "evidence_type": "case_study"},
+                        ],
                     },
-                    {"text": "补充说明", "emphasis": "low"},
+                    {"message": "Enterprise adoption is accelerating", "evidence": []},
                 ],
+                "speaker_notes": "Key slide for the narrative.",
+                "section": "situation",
             },
         ],
     })
-    kp = outline.slides[0].key_points[0]
-    assert isinstance(kp, KeyPoint)
-    assert kp.text == "市场规模达到 1000 亿"
-    assert kp.emphasis == "high"
-    assert len(kp.sub_points) == 2
-    assert outline.slides[0].key_points[1].emphasis == "low"
+    slide = outline.slides[0]
+    assert slide.headline == "AI market tripled in 3 years"
+    assert slide.body_text == "Strong momentum across all segments."
+    assert len(slide.supporting_points) == 2
+    assert slide.supporting_points[0].evidence[0].evidence_type == "data"
+    assert slide.speaker_notes == "Key slide for the narrative."
+    assert slide.section == "situation"
 
 
-def test_outline_string_keypoints_compat():
-    from ppt_agent.agent.state import Outline, KeyPoint
+def test_outline_defaults():
+    from ppt_agent.agent.state import Outline
 
     outline = Outline.model_validate({
-        "title": "Compat",
-        "slides": [
-            {"page": 1, "layout": "content", "title": "内容", "key_points": ["简单要点"]},
-        ],
+        "title": "Simple",
+        "slides": [{"page": 1, "layout": "cover", "headline": "Hello"}],
     })
-    kp = outline.slides[0].key_points[0]
-    assert isinstance(kp, KeyPoint)
-    assert kp.text == "简单要点"
-    assert kp.sub_points == []
-    assert kp.emphasis == "medium"
+    assert outline.audience == ""
+    assert outline.objective == "report"
+    assert outline.narrative.framework == "scqa"
+    assert outline.slides[0].supporting_points == []
+    assert outline.slides[0].body_text == ""
+    assert outline.slides[0].speaker_notes == ""
+    assert outline.slides[0].section == ""
 
 
 def test_outline_missing_title():
@@ -145,28 +217,32 @@ def test_outline_invalid_layout():
     with pytest.raises(ValidationError):
         Outline.model_validate({
             "title": "T",
-            "slides": [{"page": 1, "layout": "invalid", "title": "X", "key_points": []}],
+            "slides": [{"page": 1, "layout": "invalid", "headline": "X"}],
         })
 
 
-def test_outline_missing_fields():
+def test_outline_missing_headline():
     from ppt_agent.agent.state import Outline
 
     with pytest.raises(ValidationError):
         Outline.model_validate({
             "title": "T",
-            "slides": [{"page": 1}],
+            "slides": [{"page": 1, "layout": "content"}],
         })
 
 
-def test_outline_key_points_default():
+def test_outline_objective_values():
     from ppt_agent.agent.state import Outline
 
-    outline = Outline.model_validate({
-        "title": "T",
-        "slides": [{"page": 1, "layout": "cover", "title": "X"}],
-    })
-    assert outline.slides[0].key_points == []
+    for obj in ["persuade", "report", "educate", "inspire"]:
+        o = Outline.model_validate({"title": "T", "slides": [{"page": 1, "layout": "cover", "headline": "X"}], "objective": obj})
+        assert o.objective == obj
+
+    with pytest.raises(ValidationError):
+        Outline.model_validate({"title": "T", "slides": [{"page": 1, "layout": "cover", "headline": "X"}], "objective": "invalid"})
+
+
+# --- Session state tests ---
 
 
 def test_session_state():
@@ -183,6 +259,23 @@ def test_session_state():
         loaded = SessionState.load(path)
         assert loaded.step == PipelineStep.IDLE
         assert loaded.session_id == "abc12345"
+        assert loaded.research_file == ""
+
+
+def test_session_state_research_step():
+    from ppt_agent.agent.state import SessionState, PipelineStep
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        from pathlib import Path
+        path = Path(tmpdir) / "session.json"
+
+        state = SessionState(session_id="test123", step=PipelineStep.RESEARCH_DONE, research_file="/some/path/research_notes.md")
+        state.save(path)
+
+        loaded = SessionState.load(path)
+        assert loaded.step == PipelineStep.RESEARCH_DONE
+        assert loaded.research_file == "/some/path/research_notes.md"
 
 
 def test_session_index():
@@ -262,7 +355,6 @@ def test_upload_append_multiple(tmp_path):
 
     # Verify materials.md contains both
     materials = tmp_path.glob("**/materials.md")
-    # The session dir may vary, find it
     for m in materials:
         content = m.read_text(encoding="utf-8")
         assert "document one" in content
@@ -270,14 +362,14 @@ def test_upload_append_multiple(tmp_path):
         break
 
 
+# --- Prompt helper tests ---
+
+
 def test_materials_section_empty():
     from ppt_agent.prompts.outline import _materials_section
 
-    result = _materials_section("")
-    assert result == ""
-
-    result = _materials_section("   ")
-    assert result == ""
+    assert _materials_section("") == ""
+    assert _materials_section("   ") == ""
 
 
 def test_materials_section_with_content():
@@ -286,3 +378,77 @@ def test_materials_section_with_content():
     result = _materials_section("Some reference material here.")
     assert "参考材料" in result
     assert "Some reference material here." in result
+
+
+def test_research_section_empty():
+    from ppt_agent.prompts.outline import _research_section
+
+    assert _research_section("") == ""
+    assert _research_section("   ") == ""
+
+
+def test_research_section_with_content():
+    from ppt_agent.prompts.outline import _research_section
+
+    result = _research_section("Key finding: market is growing.")
+    assert "研究笔记" in result
+    assert "Key finding: market is growing." in result
+
+
+# --- Research tool tests (mock LLM) ---
+
+
+def test_research_tool_saves_notes(tmp_path, monkeypatch):
+    """Verify research tool writes research_notes.md and updates state."""
+    import asyncio
+    from pathlib import Path
+    from ppt_agent.tools.research import research_topic
+    from ppt_agent.agent.state import SessionState, PipelineStep
+    from ppt_agent import config
+
+    # Set session dir
+    session_dir = tmp_path / "test_session"
+    session_dir.mkdir()
+    config._current_session_dir.set(session_dir)
+
+    # Create initial session state
+    state = SessionState(session_id="test")
+    state.save(session_dir / "session.json")
+
+    # Mock the LLM model
+    class MockResponse:
+        def __init__(self, content):
+            self.content = content
+
+    class MockModel:
+        async def ainvoke(self, messages, **kwargs):
+            # Step 1 (analyze) → Step 2 (per dimension) → Step 3 (synthesize)
+            if isinstance(messages, list) and len(messages) == 1:
+                text = messages[0].content if hasattr(messages[0], 'content') else str(messages[0])
+                if "分析" in text or "维度" in text:
+                    return MockResponse('{"analysis_summary": "Test analysis", "dimensions": [{"name": "Test", "focus": "Focus", "questions": ["Q1"]}]}')
+                elif "综合" in text or "研究报告" in text:
+                    return MockResponse("# 研究笔记：Test\n\n## 分析摘要\nTest summary\n")
+            return MockResponse("## Test Dimension\n### 核心发现\n- Finding 1\n")
+
+    monkeypatch.setattr("ppt_agent.tools.research.get_model", lambda: MockModel())
+
+    result = asyncio.get_event_loop().run_until_complete(
+        research_topic.coroutine(topic="AI Market", requirements="executive summary")
+    )
+
+    assert "研究完成" in result
+    assert (session_dir / "research_notes.md").exists()
+
+    loaded_state = SessionState.load(session_dir / "session.json")
+    assert loaded_state.step == PipelineStep.RESEARCH_DONE
+    assert loaded_state.research_file != ""
+
+
+def test_pipeline_step_order():
+    """Verify RESEARCH_DONE comes before OUTLINE_DONE."""
+    from ppt_agent.agent.state import PipelineStep
+
+    steps = list(PipelineStep)
+    assert steps.index(PipelineStep.RESEARCH_DONE) < steps.index(PipelineStep.OUTLINE_DONE)
+    assert steps.index(PipelineStep.IDLE) < steps.index(PipelineStep.RESEARCH_DONE)

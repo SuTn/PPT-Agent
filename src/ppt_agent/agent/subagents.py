@@ -27,7 +27,7 @@ SLIDE_GENERATOR_PROMPT = """你是 HTML 幻灯片生成专家。
 
 - cover：封面页，大标题居中，背景可用渐变或纯色
 - toc：目录页，清晰的章节列表
-- content：内容页，标题 + 要点列表（3-5 个）
+- content：内容页，Action Title（headline）+ supporting_points（支撑论据列表）
 - section：章节分隔页，居中大号章节标题
 - ending：结束页，简洁的感谢/总结
 

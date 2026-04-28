@@ -2,6 +2,7 @@ import asyncio
 import json
 import re
 
+from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
 from ppt_agent.agent.state import SessionState, PipelineStep
@@ -36,11 +37,16 @@ async def _generate_one_slide(
             page=slide_info["page"],
             total=total,
             layout=slide_info["layout"],
-            title=slide_info["title"],
-            key_points=json.dumps(slide_info.get("key_points", []), ensure_ascii=False),
+            headline=slide_info.get("headline", slide_info.get("title", "")),
+            body_text=slide_info.get("body_text", ""),
+            supporting_points=json.dumps(
+                slide_info.get("supporting_points", []), ensure_ascii=False
+            ),
+            speaker_notes=slide_info.get("speaker_notes", ""),
+            section=slide_info.get("section", ""),
             style_spec=style_spec,
         )
-        response = await model.ainvoke(prompt)
+        response = await model.ainvoke([HumanMessage(content=prompt)])
         html_content = _strip_code_fence(response.content)
         return slide_info, html_content
 

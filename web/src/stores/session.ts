@@ -6,10 +6,18 @@ import client from "../api/client";
 const storeMap = new Map<string, ReturnType<typeof createSessionStore>>();
 
 const TOOL_TO_STEP: Record<string, string> = {
+  research_topic: "research_done",
   generate_outline: "outline_done",
   select_template: "template_done",
   generate_slides: "slides_done",
   export_pptx: "exported",
+};
+
+const TOOL_NOTIFICATIONS: Record<string, string> = {
+  research_topic: "研究完成，请查看研究笔记",
+  generate_outline: "大纲已生成，请确认",
+  generate_slides: "幻灯片已生成",
+  export_pptx: "PPTX 导出完成，可下载",
 };
 
 function createSessionStore(sessionId: string) {
@@ -20,6 +28,7 @@ function createSessionStore(sessionId: string) {
     const loaded = ref(false);
     const pipelineStep = ref("idle");
     const outline = ref<any>(null);
+    const researchNotes = ref<string>("");
 
     async function loadHistory() {
       if (loaded.value) return;
@@ -42,6 +51,14 @@ function createSessionStore(sessionId: string) {
               try { outline.value = JSON.parse(jsonStr); } catch { /* ignore */ }
               break;
             }
+          }
+          // Restore research notes from API if research was done
+          const researchSteps = ["research_done", "outline_done", "template_done", "slides_done", "exported"];
+          if (researchSteps.includes(pipelineStep.value)) {
+            try {
+              const { data: rd } = await client.get(`/sessions/${sessionId}/research`);
+              if (rd?.content) researchNotes.value = rd.content;
+            } catch { /* no research notes */ }
           }
         }
       } catch {
@@ -106,10 +123,6 @@ function createSessionStore(sessionId: string) {
                   content: "",
                   toolCalls: [{ name: toolName, args: event.args ?? {} }],
                 });
-                // Update pipeline step based on tool being called
-                if (TOOL_TO_STEP[toolName]) {
-                  pipelineStep.value = TOOL_TO_STEP[toolName];
-                }
               } else if (event.type === "tool_result") {
                 const toolName = event.name!;
                 const toolContent = event.content ?? "";
@@ -118,6 +131,10 @@ function createSessionStore(sessionId: string) {
                   content: `[${toolName}] ${toolContent}`,
                   toolResult: true,
                 });
+                // Advance pipeline step on successful tool completion
+                if (TOOL_TO_STEP[toolName]) {
+                  pipelineStep.value = TOOL_TO_STEP[toolName];
+                }
                 // Parse outline from generate_outline tool result
                 if (toolName === "generate_outline" && toolContent.trim().startsWith("{")) {
                   try {
@@ -126,6 +143,14 @@ function createSessionStore(sessionId: string) {
                     // not valid JSON
                   }
                 }
+                // Fetch research notes after research_topic completes
+                if (toolName === "research_topic") {
+                  client.get(`/sessions/${sessionId}/research`).then(({ data }) => {
+                    if (data?.content) researchNotes.value = data.content;
+                  }).catch(() => {});
+                }
+                // Notify user when a tool completes (they may be in another tab)
+                notifyUser(toolName);
               } else if (event.type === "error") {
                 error.value = event.message ?? "Unknown error";
               }
@@ -166,7 +191,48 @@ function createSessionStore(sessionId: string) {
       messages.value.push({ role: "system", content: text });
     }
 
-    return { messages, isStreaming, error, pipelineStep, outline, sendMessage, addSystemNotice, loadHistory };
+    // --- Browser tab notification ---
+    let titleInterval: ReturnType<typeof setInterval> | null = null;
+    const originalTitle = document.title;
+
+    function notifyUser(toolName: string) {
+      const message = TOOL_NOTIFICATIONS[toolName];
+      if (!message) return;
+
+      // Browser Notification API
+      if ("Notification" in window) {
+        if (Notification.permission === "granted") {
+          new Notification("PPT-Agent", { body: message });
+        } else if (Notification.permission !== "denied") {
+          Notification.requestPermission().then((perm) => {
+            if (perm === "granted") new Notification("PPT-Agent", { body: message });
+          });
+        }
+      }
+
+      // Tab title flash
+      if (titleInterval) clearInterval(titleInterval);
+      let toggle = false;
+      titleInterval = setInterval(() => {
+        document.title = toggle ? `🔔 ${message}` : originalTitle;
+        toggle = !toggle;
+      }, 1000);
+      // Stop flashing after 10 seconds or when user focuses
+      setTimeout(() => stopTitleFlash(), 10000);
+    }
+
+    function stopTitleFlash() {
+      if (titleInterval) {
+        clearInterval(titleInterval);
+        titleInterval = null;
+        document.title = originalTitle;
+      }
+    }
+
+    // Stop flashing when user focuses the tab
+    window.addEventListener("focus", stopTitleFlash);
+
+    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, sendMessage, addSystemNotice, loadHistory };
   })();
 }
 
