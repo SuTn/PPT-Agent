@@ -6,7 +6,7 @@ from pathlib import Path
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
-from ppt_agent.agent.state import PipelineStep, SessionState
+from ppt_agent.agent.state import PipelineStep, SessionState, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.research import (
@@ -15,7 +15,9 @@ from ppt_agent.prompts.research import (
     RESEARCH_SYNTHESIZE_PROMPT,
     _research_materials_section,
     _research_requirements_section,
+    _search_results_section,
 )
+from ppt_agent.search import get_search_provider
 
 _MAX_RETRIES = 3
 
@@ -111,8 +113,21 @@ async def _step2_research_dimension(
     dim: dict,
     model,
 ) -> str:
-    """Research a single dimension."""
+    """Research a single dimension, optionally with web search."""
     async with sem:
+        # Web search for this dimension (if configured)
+        search_results = []
+        search_provider = get_search_provider()
+        if search_provider:
+            questions = dim.get("questions", [])
+            query = f"{topic} {dim.get('focus', '')}"
+            if questions:
+                query += f" {questions[0]}"
+            try:
+                search_results = await search_provider.search(query, max_results=5)
+            except Exception:
+                pass  # search failure should not block research
+
         prompt = RESEARCH_DIMENSION_PROMPT.format(
             topic=topic,
             requirements_section=_research_requirements_section(requirements),
@@ -120,6 +135,7 @@ async def _step2_research_dimension(
             dimension_focus=dim.get("focus", ""),
             dimension_questions=str(dim.get("questions", [])),
             materials_section=_research_materials_section(materials),
+            search_section=_search_results_section(search_results),
         )
         result = await model.ainvoke([HumanMessage(content=prompt)])
         return result.content
@@ -194,9 +210,13 @@ async def research_topic(topic: str, requirements: str = "") -> str:
     state.step = PipelineStep.RESEARCH_DONE
     state.research_file = str(notes_path)
     state.save(state_path)
+    sync_session_index(state.session_id, step=state.step.value)
 
-    summary = f"研究完成，已保存研究笔记（{len(dimensions)} 个维度）"
+    dim_names = "、".join(d.get("name", "?") for d in dimensions)
+    summary = f"研究完成，共 {len(dimensions)} 个维度：{dim_names}"
     if failed:
         summary += f"\n警告：{len(failed)} 个维度研究失败：\n" + "\n".join(failed)
 
-    return summary
+    # Include a preview so the agent can present findings to the user
+    preview = research_notes[:800] if len(research_notes) > 800 else research_notes
+    return f"{summary}\n\n研究笔记摘要：\n{preview}"

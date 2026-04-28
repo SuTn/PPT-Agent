@@ -28,6 +28,10 @@ PPT_AGENT_MODEL=anthropic:claude-sonnet-4-6
 OPENAI_API_KEY=sk-xxx
 PPT_AGENT_MODEL=openai:gpt-4o
 
+# 或 OpenRouter（统一接入多模型）
+PPT_AGENT_OPENROUTER_API_KEY=sk-or-xxx
+PPT_AGENT_MODEL=openrouter:google/gemini-2.5-flash
+
 # 或智谱
 PPT_AGENT_ZHIPU_API_KEY=your-key
 PPT_AGENT_MODEL=zhipu:glm-4
@@ -81,6 +85,7 @@ npm run dev
 |--------|-----------|
 | Anthropic | `anthropic:claude-sonnet-4-6` |
 | OpenAI | `openai:gpt-4o` |
+| OpenRouter | `openrouter:google/gemini-2.5-flash` |
 | 智谱 | `zhipu:glm-4` |
 | VLLM | `vllm:model-name` |
 
@@ -93,6 +98,15 @@ npm run dev
 - `report` — 数据报告（灰白 + 图表元素）
 
 每个模板均定义了三级强调样式（high/medium/low），用于视觉层次控制。
+
+## 联网搜索（可选）
+
+配置搜索 API 后，研究阶段会自动为每个维度搜索最新网络信息，提升内容时效性和准确性。
+
+| 环境变量 | 说明 |
+|--------|------|
+| `PPT_AGENT_SEARCH_PROVIDER` | 搜索提供商，目前支持 `tavily`。留空则禁用联网搜索。 |
+| `PPT_AGENT_TAVILY_API_KEY` | Tavily API Key（[免费注册](https://tavily.com)） |
 
 ## 并发配置
 

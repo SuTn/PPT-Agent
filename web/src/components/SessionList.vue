@@ -37,6 +37,7 @@ const sessionsStore = useSessionsStore();
 
 const STEP_LABELS: Record<string, string> = {
   idle: "未开始",
+  research_done: "研究完成",
   outline_done: "大纲完成",
   template_done: "模板已选",
   slides_done: "幻灯片完成",

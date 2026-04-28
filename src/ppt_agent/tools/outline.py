@@ -6,7 +6,7 @@ from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 from pydantic import ValidationError
 
-from ppt_agent.agent.state import Outline, SessionState, PipelineStep
+from ppt_agent.agent.state import Outline, SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.outline import OUTLINE_PROMPT, _materials_section, _research_section
@@ -144,5 +144,6 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
     state.title = outline.title
     state.outline_file = str(outline_path)
     state.save(_state_path())
+    sync_session_index(state.session_id, step=state.step.value, title=outline.title)
 
     return json.dumps(outline.model_dump(), ensure_ascii=False, indent=2)

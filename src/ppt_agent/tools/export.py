@@ -4,7 +4,7 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
-from ppt_agent.agent.state import SessionState, PipelineStep
+from ppt_agent.agent.state import SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.export.renderer import browser_context, render_html_to_png
 from ppt_agent.export.pptx_builder import build_pptx
@@ -58,6 +58,7 @@ async def export_pptx(slides_dir: str = "") -> str:
     state.step = PipelineStep.EXPORTED
     state.pptx_file = str(pptx_path)
     state.save(session_dir / "session.json")
+    sync_session_index(state.session_id, step=state.step.value)
 
     msg = f"PPTX 已导出: {pptx_path}"
     if render_failed:

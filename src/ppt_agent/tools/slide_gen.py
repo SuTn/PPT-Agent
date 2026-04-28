@@ -5,7 +5,7 @@ import re
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
-from ppt_agent.agent.state import SessionState, PipelineStep
+from ppt_agent.agent.state import SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.slide import SLIDE_PROMPT
@@ -131,6 +131,7 @@ async def generate_slides() -> str:
     state.step = PipelineStep.SLIDES_DONE
     state.slides_dir = str(slides_dir)
     state.save(session_dir / "session.json")
+    sync_session_index(state.session_id, step=state.step.value)
 
     msg = f"已生成 {len(generated)} 张幻灯片:\n" + "\n".join(generated)
     if failed:

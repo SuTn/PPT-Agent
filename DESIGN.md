@@ -65,6 +65,7 @@
 |--------|-----------|----------|
 | Anthropic | `anthropic:claude-sonnet-4-6` | `init_chat_model` |
 | OpenAI | `openai:gpt-4o` | `init_chat_model` |
+| OpenRouter | `openrouter:google/gemini-2.5-flash` | `ChatOpenAI(base_url=...)` |
 | 智谱 | `zhipu:glm-4` | `ChatOpenAI(base_url=...)` |
 | VLLM | `vllm:model-name` | `ChatOpenAI(base_url=...)` |
 
@@ -275,7 +276,38 @@ SlideItem 的 `visual_hint` 字段指导内容区域的渲染方式：
 
 ---
 
-## 6. 导出管线
+## 6. 联网搜索
+
+研究阶段可选的联网增强，为每个研究维度提供实时 Web 内容。
+
+### 6.1 架构
+
+```
+SearchProvider (Protocol)
+├── TavilySearchProvider   (httpx + Tavily REST API)
+└── BrowserSearchProvider  (Playwright，后续支持)
+```
+
+搜索不是独立的 agent tool，而是 `research_topic` 内部的增强。Agent 不感知搜索的存在，只感知研究质量提升。
+
+### 6.2 集成流程
+
+`_step2_research_dimension` 中，LLM 调用前：
+1. 从 dimension 的 `focus` + `questions` 组合搜索查询
+2. 调用 `SearchProvider.search(query)` 获取结果
+3. 通过 `_search_results_section()` 注入 `RESEARCH_DIMENSION_PROMPT` 的 `{search_section}` 占位符
+4. 搜索失败不阻断研究（try/except 静默降级为纯 LLM）
+
+### 6.3 配置
+
+| 环境变量 | 默认值 | 说明 |
+|--------|--------|------|
+| `PPT_AGENT_SEARCH_PROVIDER` | `""` | `"tavily"` 启用，留空禁用 |
+| `PPT_AGENT_TAVILY_API_KEY` | `""` | Tavily API Key |
+
+---
+
+## 7. 导出管线
 
 ```
 HTML → Playwright 截图(2x, 并发) → PNG → python-pptx 嵌入 → .pptx
@@ -288,7 +320,7 @@ HTML → Playwright 截图(2x, 并发) → PNG → python-pptx 嵌入 → .pptx
 
 ---
 
-## 7. 项目结构
+## 8. 项目结构
 
 ```
 ppt-agent/
@@ -307,13 +339,14 @@ ppt-agent/
 │   │   └── state.py            # Evidence + SupportingPoint + NarrativeFramework + Outline + SessionState + PipelineStep
 │   │
 │   ├── tools/
-│   │   ├── research.py         # research_topic（3 步 LLM 分析+并发维度研究+综合）
+│   │   ├── research.py         # research_topic（3 步 LLM 分析+并发维度研究+综合，可选联网搜索）
 │   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试 + materials + research_notes）
 │   │   ├── template.py         # select_template / list_templates
 │   │   ├── slide_gen.py        # generate_slides（并发 LLM 调用 + 容错）
 │   │   ├── export.py           # export_pptx（并发截图 + 容错）
 │   │   └── upload.py           # upload_and_parse（markitdown 文档解析）
 │   │
+│   ├── search.py               # SearchProvider 协议 + Tavily 实现（研究阶段联网搜索）
 │   ├── templates/
 │   │   ├── registry.py         # 模板查询 + 骨架加载 + 渲染合并
 │   │   ├── skeletons/          # 共享 HTML 骨架（cover/toc/content/section/ending）
@@ -379,7 +412,7 @@ web/
 
 ---
 
-## 8. MVP 状态
+## 9. MVP 状态
 
 ### 8.1 已完成
 
@@ -444,14 +477,14 @@ web/
 
 ### 8.4 待开发
 
-- [ ] 联网搜索（作为 research_topic 的可选增强）
+- [x] 联网搜索（Tavily，SearchProvider 可扩展架构）
 - [ ] AI 自定义风格生成
 - [ ] PDF 导出
-- [ ] 更多提供商
+- [ ] 浏览器搜索（Playwright 操作浏览器，基于 SearchProvider 扩展）
 
 ---
 
-## 9. 关键设计决策记录
+## 10. 关键设计决策记录
 
 ### 9.1 async tool 并发而非子代理
 
@@ -560,38 +593,23 @@ web/
 
 ---
 
-## 10. 已知问题与待优化项
+## 11. 已修复问题
 
-以下问题已确认但尚未修复，将在下一轮迭代中处理。
+### 10.1 研究后自动跳转到大纲生成 ✅ 已修复
 
-### 10.1 研究后自动跳转到大纲生成
+- `research_topic` 返回值增加维度名称 + 研究笔记摘要预览（800 字）
+- Agent prompt 强化"必须展示摘要并等待用户确认后再调用 generate_outline"
 
-**现象**：`research_topic` 完成后，agent 直接调用 `generate_outline`，没有先展示研究摘要并等待用户确认。
-**影响**：用户无法审查研究方向是否有偏差，也无法在生成大纲前补充要求。
-**根因**：Agent 系统提示词中"研究完成后展示研究摘要并等待确认"的指令尚未在 LLM 行为中稳定体现，tool 返回值过于简短（只有"研究完成"字样），agent 没有足够的研究内容向用户展示。
-**修复方向**：
-- 在 tool 返回值中加入研究摘要（维度数量 + 核心发现概要）
-- 在 prompt 中强化"展示摘要后等待用户输入"的约束
+### 10.2 生成大纲内容质量不稳定 ✅ 已修复
 
-### 10.2 生成大纲内容质量不稳定
+- 大纲 prompt 增加"第三步：自查"，要求 LLM 逐页检查 headline 是否为结论句、页面间是否有逻辑递进、visual_hint 是否合理使用
 
-**现象**：LLM 生成的 outline 在 headline 质量（有时仍为话题标签而非结论句）、叙事连贯性（章节递进不足）、visual_hint 使用率（大部分页面留空）上表现不稳定。
-**影响**：部分 PPT 内容质量明显低于其他，观众体验不一致。
-**根因**：prompt 虽有"先思考再输出"的结构指引，但 LLM 仍可能跳过深层规划直接填充 JSON。缺少对"差大纲"的负面反馈循环。
-**修复方向**：
-- 在 prompt 中加入"质量检查"步骤（生成后自查 headline 是否为结论句）
-- 增加 retry 中的负面反馈（"你上次生成的 headline 有 X 个是话题标签而非结论句，请修正"）
+### 10.3 前端历史对话状态显示为"未开始" ✅ 已修复
 
-### 10.3 前端历史对话状态显示为"未开始"
+- 新增 `sync_session_index()` 函数，每个 tool 更新 `session.json` 后同步更新 `index.json`
+- `SessionList.vue` 的 `STEP_LABELS` 补充 `research_done: "研究完成"`
 
-**现象**：加载历史会话时，PipelineStepper 始终显示"开始"状态，不反映实际进度。
-**影响**：用户无法从前端快速判断一个历史会话进行到哪一步。
-**根因**：`session.ts` 的 `loadHistory()` 从 API 读取 `data.step` 并设置 `pipelineStep.value`，但步骤映射不完整（`TOOL_TO_STEP` 仅覆盖 tool 完成场景，state 恢复走另一条路径）。
-**修复方向**：统一 step 恢复逻辑，在 loadHistory 中直接读取 SessionState 的 step 字段并映射到 PipelineStepper。
+### 10.4 历史会话列表标题为 session_id ✅ 已修复
 
-### 10.4 历史会话列表标题为 session_id
-
-**现象**：侧边栏历史会话列表显示 session_id（如 `a1b2c3d4`）而非 PPT 标题。
-**影响**：用户无法快速识别哪个会话对应哪个 PPT，需逐个点击进入才能看到标题。
-**根因**：`SessionIndex.add()` 写入 `SessionEntry` 时 `title` 字段为空（SessionState.title 在 export 时才设置），`SessionList.vue` 显示 `entry.title`。
-**修复方向**：在 `select_template` 或 `generate_outline` 时更新 SessionIndex 的 title 字段（从 outline.title 读取）。
+- `generate_outline` 完成后调用 `sync_session_index()` 更新 `index.json` 中的 title 和 step
+- 侧边栏现在显示 PPT 标题而非 session_id

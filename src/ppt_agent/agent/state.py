@@ -138,3 +138,11 @@ class SessionIndex:
 
     def list_all(self) -> list[SessionEntry]:
         return [SessionEntry.model_validate(e) for e in self._read()]
+
+
+def sync_session_index(session_id: str, **fields) -> None:
+    """Update session index entry after session state changes."""
+    from ppt_agent.config import settings
+
+    index = SessionIndex(settings.output_dir / "index.json")
+    index.update(session_id, **fields)

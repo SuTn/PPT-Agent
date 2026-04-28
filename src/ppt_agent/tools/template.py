@@ -2,7 +2,7 @@ import json
 
 from langchain_core.tools import tool
 
-from ppt_agent.agent.state import SessionState, PipelineStep
+from ppt_agent.agent.state import SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir
 from ppt_agent.templates.registry import list_all_templates, load_template
 
@@ -45,5 +45,6 @@ def select_template(template_key: str) -> str:
     state.style_spec_file = str(spec_path)
     state.template_key = template_key
     state.save(session_dir / "session.json")
+    sync_session_index(state.session_id, step=state.step.value, template_key=template_key)
 
     return f"已选择模板「{spec['name']}」，style_spec 已保存。"
