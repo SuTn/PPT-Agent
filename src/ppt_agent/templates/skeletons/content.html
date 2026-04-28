@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}};
+  line-height: {{line_height}};
+  color: {{text_color}};
+  background: {{background}};
+  position: relative;
+  display: flex; flex-direction: column;
+}
+/* Header: headline + title bar */
+.slide-header {
+  padding: 36px 80px 0;
+  flex-shrink: 0;
+}
+.title-bar {
+  height: {{title_bar_height}};
+  background: {{primary}};
+  margin: 0 80px;
+}
+.slide-headline {
+  font-size: {{subtitle_size}};
+  font-weight: 700;
+  color: {{primary}};
+  line-height: 1.4;
+  margin-top: 12px;
+  padding: 0 80px;
+}
+/* Content area: LLM fills this */
+.slide-content {
+  flex: 1;
+  padding: 16px 80px 0;
+  overflow: hidden;
+}
+/* Footer: page number */
+.slide-footer {
+  flex-shrink: 0;
+  padding: 0 80px 24px;
+  text-align: right;
+  font-size: {{small_size}};
+  color: {{text_light}};
+}
+</style>
+</head>
+<body>
+<div class="slide-header">
+  <div class="title-bar"></div>
+</div>
+<div class="slide-headline">{headline}</div>
+<div class="slide-content">
+{content}
+</div>
+<div class="slide-footer">{page} / {total}</div>
+{speaker_notes}
+</body>
+</html>

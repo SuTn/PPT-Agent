@@ -200,7 +200,8 @@ class SlideItem(BaseModel):
     body_text: str = ""
     supporting_points: list[SupportingPoint] = []
     speaker_notes: str = ""
-    section: str = ""
+    section: str = ""                             # narrative role: situation/complication/...
+    visual_hint: str = ""                         # table / comparison / timeline / process / chart / quote_highlight
 
 class Outline(BaseModel):
     title: str
@@ -226,7 +227,23 @@ class Outline(BaseModel):
 渲染：Playwright Chromium，viewport 1280×720，device_scale_factor=2
 ```
 
-### 5.2 Style Spec 结构
+### 5.2 骨架模板（Skeleton）
+
+幻灯片生成采用**骨架 + 内容分离**架构：
+
+- **骨架（Skeleton）**：每种布局类型的 HTML 骨架定义固定的页面结构（header、content 区域、footer/页码），style_spec 的配色/字体通过 `{{var}}` 占位符注入
+- **内容区域**：LLM 只生成 `<div class="slide-content">` 内部的 HTML 片段
+- **合并**：`render_skeleton()` 将骨架、style_spec、LLM 内容合并为完整 HTML
+
+骨架加载优先级：模板特定骨架（`{template}/skeletons/{layout}.html`）> 共享骨架（`skeletons/{layout}.html`）
+
+骨架保证的**跨页一致性**：
+- 页码固定在右下角（`N / M` 格式）
+- headline 位置和样式统一
+- CSS reset + 基础字体在骨架中定义
+- style_spec 精确映射为 CSS 值
+
+### 5.3 Style Spec 结构
 
 每个模板包含 `style_spec.json`，定义配色、字体、间距、组件样式、**三级强调样式**。
 
@@ -241,9 +258,20 @@ class Outline(BaseModel):
 }
 ```
 
-### 5.3 布局类型
+### 5.4 布局类型
 
 `cover` / `toc` / `content` / `section` / `ending`
+
+### 5.5 视觉元素提示（visual_hint）
+
+SlideItem 的 `visual_hint` 字段指导内容区域的渲染方式：
+- `table`：数据对比表格
+- `comparison`：左右对比布局
+- `timeline`：时间线
+- `process`：流程图
+- `chart`：CSS 图表
+- `quote_highlight`：金句突出展示
+- 留空：默认列表布局
 
 ---
 
@@ -287,7 +315,8 @@ ppt-agent/
 │   │   └── upload.py           # upload_and_parse（markitdown 文档解析）
 │   │
 │   ├── templates/
-│   │   ├── registry.py
+│   │   ├── registry.py         # 模板查询 + 骨架加载 + 渲染合并
+│   │   ├── skeletons/          # 共享 HTML 骨架（cover/toc/content/section/ending）
 │   │   ├── simple_business/
 │   │   ├── tech_dark/
 │   │   ├── education/
@@ -315,7 +344,7 @@ ppt-agent/
 │           └── upload.py        # 文件上传处理
 │
 └── tests/
-    ├── test_tools.py           # 35 个测试（模板、工具、校验、状态、会话索引、上传、研究）
+    ├── test_tools.py           # 41 个测试（模板、工具、校验、状态、会话索引、上传、研究、骨架）
     └── test_renderer.py        # 渲染和 PPTX 管线测试
 ```
 
@@ -367,6 +396,8 @@ web/
 - [x] SCQA 叙事框架 + Action Title + Evidence 论据结构
 - [x] NarrativeFramework（SCQA/问题-方案/时间线/自定义）
 - [x] Evidence 类型标注（data/case_study/quote/analysis/analogy）
+- [x] visual_hint 视觉元素提示（table/comparison/timeline/process/chart/quote_highlight）
+- [x] 骨架模板架构（Skeleton + 内容分离，页面结构一致性保证）
 - [x] 页数自适应（LLM 根据内容复杂度决定页数，或用户指定）
 - [x] SessionState 状态机（损坏文件自动回退）
 - [x] 会话隔离（每次生成独立目录，contextvars 传递会话上下文）
@@ -521,3 +552,46 @@ web/
 
 **选择**：tool 完成时通过 Notification API 发送系统通知 + `document.title` 闪烁提醒用户。
 **原因**：PPT 生成耗时较长（研究 30-60s，幻灯片生成数分钟），用户可能切换到其他标签页。Notification API 提供系统级通知（需用户授权），`document.title` 闪烁作为降级方案（1 秒间隔交替显示，10 秒自动停止，用户切回标签页时立即停止）。两种方式互补，确保用户不错过关键节点（研究完成、大纲生成、导就绪）。
+
+### 9.21 骨架模板 + 内容分离架构
+
+**选择**：预定义 5 种布局的 HTML 骨架（cover/toc/content/section/ending），LLM 只生成内容区域 HTML，`render_skeleton()` 合并骨架 + style_spec + 内容。
+**原因**：每页由 LLM 独立生成，完全自由的输出导致页码位置不一致、headline 样式不一。骨架固定 header（headline）、footer（右下角页码）、CSS reset，确保跨页一致性。模板可覆盖 `skeletons/{layout}.html` 实现自定义布局。
+
+---
+
+## 10. 已知问题与待优化项
+
+以下问题已确认但尚未修复，将在下一轮迭代中处理。
+
+### 10.1 研究后自动跳转到大纲生成
+
+**现象**：`research_topic` 完成后，agent 直接调用 `generate_outline`，没有先展示研究摘要并等待用户确认。
+**影响**：用户无法审查研究方向是否有偏差，也无法在生成大纲前补充要求。
+**根因**：Agent 系统提示词中"研究完成后展示研究摘要并等待确认"的指令尚未在 LLM 行为中稳定体现，tool 返回值过于简短（只有"研究完成"字样），agent 没有足够的研究内容向用户展示。
+**修复方向**：
+- 在 tool 返回值中加入研究摘要（维度数量 + 核心发现概要）
+- 在 prompt 中强化"展示摘要后等待用户输入"的约束
+
+### 10.2 生成大纲内容质量不稳定
+
+**现象**：LLM 生成的 outline 在 headline 质量（有时仍为话题标签而非结论句）、叙事连贯性（章节递进不足）、visual_hint 使用率（大部分页面留空）上表现不稳定。
+**影响**：部分 PPT 内容质量明显低于其他，观众体验不一致。
+**根因**：prompt 虽有"先思考再输出"的结构指引，但 LLM 仍可能跳过深层规划直接填充 JSON。缺少对"差大纲"的负面反馈循环。
+**修复方向**：
+- 在 prompt 中加入"质量检查"步骤（生成后自查 headline 是否为结论句）
+- 增加 retry 中的负面反馈（"你上次生成的 headline 有 X 个是话题标签而非结论句，请修正"）
+
+### 10.3 前端历史对话状态显示为"未开始"
+
+**现象**：加载历史会话时，PipelineStepper 始终显示"开始"状态，不反映实际进度。
+**影响**：用户无法从前端快速判断一个历史会话进行到哪一步。
+**根因**：`session.ts` 的 `loadHistory()` 从 API 读取 `data.step` 并设置 `pipelineStep.value`，但步骤映射不完整（`TOOL_TO_STEP` 仅覆盖 tool 完成场景，state 恢复走另一条路径）。
+**修复方向**：统一 step 恢复逻辑，在 loadHistory 中直接读取 SessionState 的 step 字段并映射到 PipelineStepper。
+
+### 10.4 历史会话列表标题为 session_id
+
+**现象**：侧边栏历史会话列表显示 session_id（如 `a1b2c3d4`）而非 PPT 标题。
+**影响**：用户无法快速识别哪个会话对应哪个 PPT，需逐个点击进入才能看到标题。
+**根因**：`SessionIndex.add()` 写入 `SessionEntry` 时 `title` 字段为空（SessionState.title 在 export 时才设置），`SessionList.vue` 显示 `entry.title`。
+**修复方向**：在 `select_template` 或 `generate_outline` 时更新 SessionIndex 的 title 字段（从 outline.title 读取）。

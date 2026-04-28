@@ -1,50 +1,63 @@
-OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
+OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 
 ## 用户需求
 {requirements}
 
 {research_section}
 {materials_section}
-## 核心原则
+## 第一步：规划叙事主线
 
-### Action Title（行动标题）
-- 每页的 `headline` 必须是**完整陈述句**，直接告诉观众"结论是什么"
-- ✅ "全球 AI 市场规模达到 1840 亿美元，同比增长 36.8%"
-- ❌ "AI 市场规模"（只是话题标签，观众需要自己解读）
-- ✅ "企业采用 AI 后运营效率平均提升 40%"
-- ❌ "企业 AI 应用"
-- headline 控制在 15 个字以内，最多两行
+在输出 JSON 之前，先在脑中完成以下规划（不要输出思考过程）：
 
-### 叙事框架（Narrative）
-- 选择一个叙事框架来组织整体结构：
-  - **scqa**：Situation（现状）→ Complication（冲突）→ Question（问题）→ Answer（回答），适合说服性演示
-  - **problem_solution**：问题 → 方案，适合提案类
-  - **chronological**：按时间线展开，适合回顾/规划类
-  - **custom**：其他自定义结构
-- 每页通过 `section` 字段标记它在叙事中的角色（如 "situation"、"complication" 等）
+1. **确定核心主张**：观众看完所有幻灯片后，应该被说服/记住的**一个**核心结论是什么？
+2. **选择叙事框架**：
+   - **scqa**：现状→冲突→核心问题→解决方案（适合说服、提案）
+   - **problem_solution**：问题→方案→效果（适合汇报、提案）
+   - **chronological**：背景→进展→展望（适合回顾、规划）
+   - **custom**：根据主题特点自由组织
+3. **规划论点递进**：每页只推进一个论点，页与页之间要有因果或递进关系
+4. **分配证据**：将研究笔记/参考材料中的数据和案例分配到最相关的论点
 
-### 论据层次（Supporting Points + Evidence）
-- 每个 supporting_point 包含一个 `message`（核心信息）和可选的 `evidence`（支撑证据）
-- evidence_type 说明证据类型：
-  - `data`：具体数据/统计数字
-  - `case_study`：实际案例
-  - `quote`：专家观点/引用
-  - `analysis`：分析推理
-  - `analogy`：类比说明
-- 每页 2-4 个 supporting_points，每个带 0-2 个 evidence
+## 第二步：内容质量标准
 
-### 受众与目标
-- 从用户需求中识别 `audience`（目标受众），据此调整术语深度
-- 选择 `objective`：persuade（说服）、report（汇报）、educate（培训）、inspire（激励）
-- 确定观众看完全部幻灯片后应该记住的**一个核心信息**
+### 好的大纲（追求）
+- 有明确的叙事弧线，观众从封面到结尾被逐步引导
+- 每页 headline 是完整陈述句，观众一眼就知道"这页的结论是什么"
+- 论据为结论服务，不是信息的堆砌
+- section 页标记叙事转折，toc 页预告主线
 
-### 整体逻辑
-- 大纲应有清晰的叙事线索，章节之间有递进关系
-- section 页用于分隔主要章节，toc 页展示全局结构
-- 如果下方有**研究笔记**，从中提取关键发现和证据，融入相关页面
-- 如果下方有**参考材料**，从中提取数据融入 evidence
+### 差的大纲（避免）
+- headline 只写话题标签（如"市场分析"），观众需要自己猜含义
+- 页面之间没有逻辑递进，像百科词条目录
+- 每页结构完全相同，套模板感明显
+- 为了凑数量而注水，论据空洞
 
-## JSON 结构
+### Action Title 规范
+- headline 必须是**完整陈述句**，直接传达本页核心结论
+- ✅ "企业引入自动化后交付周期缩短了 60%"
+- ❌ "企业自动化实践"（只是话题标签，不是结论）
+- 保持简短有力，避免超过 20 字
+
+### 论据使用原则
+- 每页聚焦一个核心论点，supporting_points 数量根据内容需要决定
+- evidence_type：data（数据）、case_study（案例）、quote（引用）、analysis（分析）、analogy（类比）
+- 有力的证据一个就够了，不要凑数
+
+### 视觉元素（visual_hint）
+当内容适合用特定视觉形式呈现时，在 `visual_hint` 字段标注：
+- `table`：数据对比表格（如：多维度指标对比）
+- `comparison`：左右或上下对比（如：方案 A vs 方案 B、变革前后）
+- `timeline`：时间线（如：发展历程、里程碑）
+- `process`：流程/步骤（如：实施路径、工作流）
+- `chart`：图表（如：趋势变化、占比分布）
+- `quote_highlight`：金句/引用突出展示（如：核心观点、名言）
+- 留空：默认列表布局
+
+只在内容确实需要时使用，不必每页都指定。
+
+## 第三步：输出 JSON
+
+严格按以下结构输出，不要输出 JSON 以外的任何内容。
 
 ```json
 {{
@@ -53,8 +66,8 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
   "objective": "persuade / report / educate / inspire",
   "narrative": {{
     "framework": "scqa / problem_solution / chronological / custom",
-    "situation": "现状描述（SCQA 时使用）",
-    "complication": "冲突/问题（SCQA 时使用）",
+    "situation": "现状/背景",
+    "complication": "冲突/挑战",
     "core_question": "核心问题",
     "core_answer": "核心回答/主张"
   }},
@@ -62,47 +75,42 @@ OUTLINE_PROMPT = """请根据以下需求生成一个 PPT 幻灯片大纲。
     {{
       "page": 1,
       "layout": "cover",
-      "headline": "AI 正在重塑全球产业格局",
+      "headline": "完整陈述句形式的主标题",
       "supporting_points": []
     }},
     {{
       "page": 2,
       "layout": "toc",
-      "headline": "今天我们将探讨三个关键问题",
+      "headline": "概括演示主线的标题",
       "supporting_points": []
     }},
     {{
       "page": 3,
       "layout": "content",
-      "headline": "全球 AI 市场规模达到 1840 亿美元",
-      "body_text": "市场增速持续加快，生成式 AI 成为最大增长引擎。",
+      "headline": "本页核心结论（完整陈述句）",
+      "body_text": "补充说明（1-2句）",
       "supporting_points": [
         {{
-          "message": "市场规模三年翻三倍，增速远超预期",
+          "message": "支撑结论的论点",
           "evidence": [
-            {{"claim": "CAGR 36.8%，从 500 亿增至 1840 亿美元", "evidence_type": "data", "source": "Gartner 2024"}},
-            {{"claim": "生成式 AI 占比从 12% 提升至 28%", "evidence_type": "data"}}
-          ]
-        }},
-        {{
-          "message": "企业采用率持续攀升",
-          "evidence": [
-            {{"claim": "企业 AI 采用率从 50% 提升至 72%", "evidence_type": "data"}},
-            {{"claim": "微软 Copilot 客户案例：效率提升 40%", "evidence_type": "case_study"}}
+            {{"claim": "具体数据或案例", "evidence_type": "data"}}
           ]
         }}
       ],
-      "speaker_notes": "重点强调增速数据，这是后续论点的基石。",
-      "section": "situation"
-    }},
-    ...
+      "speaker_notes": "演讲者备注",
+      "section": "situation / complication / answer / ...",
+      "visual_hint": "table / comparison / timeline / process / chart / quote_highlight 或留空"
+    }}
   ]
 }}
 ```
 
-- 封面页（cover）和结束页（ending）不需要 supporting_points
-- 目录页（toc）不需要 supporting_points，但 headline 应概括演示主线
-- section 页 headline 应是该章节的核心结论
+- cover 和 ending 页不需要 supporting_points
+- toc 页 headline 概括演示主线
+- section 页 headline 是该章节的核心结论
+- 从用户需求中推断 audience 和 objective，据此调整术语深度
+- 如果上方有研究笔记，将关键发现融入 supporting_points 和 evidence
+- 如果上方有参考材料，将数据融入 evidence
 {page_instruction}
 
 只输出 JSON，不要其他内容。"""

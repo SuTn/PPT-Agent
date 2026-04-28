@@ -29,6 +29,7 @@
         <div class="slide-content">
           <div class="slide-top">
             <span class="badge" :class="layoutBadge(slide.layout)">{{ layoutLabel(slide.layout) }}</span>
+            <span v-if="slide.visual_hint" class="badge badge--visual">{{ visualLabel(slide.visual_hint) }}</span>
             <span v-if="slide.section" class="badge badge--outline">{{ slide.section }}</span>
             <span class="slide-headline">{{ slide.headline }}</span>
           </div>
@@ -71,10 +72,15 @@ const FRAMEWORK_LABELS: Record<string, string> = {
   scqa: "SCQA 框架", problem_solution: "问题-方案", chronological: "时间线", custom: "自定义",
 };
 
+const VISUAL_LABELS: Record<string, string> = {
+  table: "表格", comparison: "对比", timeline: "时间线", process: "流程", chart: "图表", quote_highlight: "金句",
+};
+
 function layoutLabel(l: string): string { return LAYOUT_LABELS[l] ?? l; }
 function layoutBadge(l: string): string { return LAYOUT_BADGES[l] ?? ""; }
 function objectiveLabel(o: string): string { return OBJECTIVE_LABELS[o] ?? o; }
 function frameworkLabel(f: string): string { return FRAMEWORK_LABELS[f] ?? f; }
+function visualLabel(v: string): string { return VISUAL_LABELS[v] ?? v; }
 </script>
 
 <style scoped>
@@ -208,4 +214,5 @@ function frameworkLabel(f: string): string { return FRAMEWORK_LABELS[f] ?? f; }
 .badge--warning { background: #fef3c7; color: #92400e; }
 .badge--success { background: #dcfce7; color: #166534; }
 .badge--outline { background: transparent; border: 1px solid var(--border); }
+.badge--visual { background: #ede9fe; color: #6d28d9; }
 </style>

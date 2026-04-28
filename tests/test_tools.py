@@ -245,6 +245,39 @@ def test_outline_objective_values():
 # --- Session state tests ---
 
 
+def test_slide_item_visual_hint():
+    from ppt_agent.agent.state import SlideItem
+
+    # Default empty
+    s1 = SlideItem(page=1, layout="content", headline="test")
+    assert s1.visual_hint == ""
+
+    # With visual_hint
+    s2 = SlideItem(page=2, layout="content", headline="compare A vs B", visual_hint="comparison")
+    assert s2.visual_hint == "comparison"
+
+    # Table hint
+    s3 = SlideItem(page=3, layout="content", headline="quarterly results", visual_hint="table")
+    assert s3.visual_hint == "table"
+
+
+def test_outline_with_visual_hint():
+    from ppt_agent.agent.state import Outline
+
+    outline = Outline.model_validate({
+        "title": "Visual Test",
+        "slides": [
+            {"page": 1, "layout": "cover", "headline": "Title"},
+            {"page": 2, "layout": "content", "headline": "Compare A vs B", "visual_hint": "comparison"},
+            {"page": 3, "layout": "content", "headline": "Timeline of events", "visual_hint": "timeline"},
+            {"page": 4, "layout": "content", "headline": "Regular slide"},
+        ],
+    })
+    assert outline.slides[1].visual_hint == "comparison"
+    assert outline.slides[2].visual_hint == "timeline"
+    assert outline.slides[3].visual_hint == ""
+
+
 def test_session_state():
     from ppt_agent.agent.state import SessionState, PipelineStep
     import tempfile
@@ -452,3 +485,62 @@ def test_pipeline_step_order():
     steps = list(PipelineStep)
     assert steps.index(PipelineStep.RESEARCH_DONE) < steps.index(PipelineStep.OUTLINE_DONE)
     assert steps.index(PipelineStep.IDLE) < steps.index(PipelineStep.RESEARCH_DONE)
+
+
+def test_skeleton_loading():
+    """All 5 layout skeletons can be loaded."""
+    from ppt_agent.templates.registry import load_skeleton
+
+    for layout in ["cover", "toc", "content", "section", "ending"]:
+        skel = load_skeleton(layout)
+        assert "<html" in skel
+        assert "{content}" in skel
+        assert "{page}" in skel
+
+
+def test_skeleton_loading_invalid():
+    """Loading a nonexistent skeleton raises ValueError."""
+    from ppt_agent.templates.registry import load_skeleton
+
+    import pytest
+    with pytest.raises(ValueError, match="Skeleton not found"):
+        load_skeleton("nonexistent_layout")
+
+
+def test_skeleton_rendering():
+    """Skeleton rendering fills all placeholders."""
+    from ppt_agent.templates.registry import load_skeleton, render_skeleton, load_template
+
+    spec = load_template("simple_business")
+    skel = load_skeleton("content")
+    html = render_skeleton(
+        skeleton_html=skel,
+        style_spec=spec,
+        headline="Test Headline",
+        page=3,
+        total=10,
+        content="<p>Content here</p>",
+        speaker_notes="Remember to pause",
+    )
+
+    # Style spec values injected
+    assert "#1a365d" in html  # primary color
+    assert "'Microsoft YaHei'" in html  # font
+    # Data placeholders filled
+    assert "Test Headline" in html
+    assert "3 / 10" in html
+    assert "<p>Content here</p>" in html
+    assert "<!-- speaker_notes: Remember to pause -->" in html
+    # No unfilled placeholders
+    assert "{{" not in html
+    assert "{headline}" not in html
+    assert "{page}" not in html
+
+
+def test_skeleton_template_specific_fallback():
+    """Nonexistent template-specific skeleton falls back to shared."""
+    from ppt_agent.templates.registry import load_skeleton
+
+    # "nonexistent_template" has no skeletons dir, should fall back to shared
+    skel = load_skeleton("content", template_name="nonexistent_template")
+    assert "<html" in skel

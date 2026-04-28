@@ -9,6 +9,7 @@ from ppt_agent.agent.state import SessionState, PipelineStep
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.prompts.slide import SLIDE_PROMPT
+from ppt_agent.templates.registry import load_skeleton, render_skeleton
 
 _CODE_FENCE = re.compile(r"```(?:html)?\s*(.*?)\s*```", re.DOTALL)
 
@@ -30,25 +31,46 @@ async def _generate_one_slide(
     model,
     slide_info: dict,
     total: int,
-    style_spec: str,
+    style_spec: dict,
+    template_key: str,
 ) -> tuple[dict, str]:
     async with sem:
+        layout = slide_info["layout"]
+        headline = slide_info.get("headline", "")
+        page = slide_info["page"]
+
+        # Load skeleton for this layout
+        skeleton = load_skeleton(layout, template_key)
+
+        # Generate content area HTML via LLM
         prompt = SLIDE_PROMPT.format(
-            page=slide_info["page"],
+            page=page,
             total=total,
-            layout=slide_info["layout"],
-            headline=slide_info.get("headline", slide_info.get("title", "")),
+            layout=layout,
+            headline=headline,
             body_text=slide_info.get("body_text", ""),
             supporting_points=json.dumps(
                 slide_info.get("supporting_points", []), ensure_ascii=False
             ),
             speaker_notes=slide_info.get("speaker_notes", ""),
             section=slide_info.get("section", ""),
-            style_spec=style_spec,
+            visual_hint=slide_info.get("visual_hint", ""),
         )
         response = await model.ainvoke([HumanMessage(content=prompt)])
-        html_content = _strip_code_fence(response.content)
-        return slide_info, html_content
+        content_html = _strip_code_fence(response.content)
+
+        # Merge into skeleton
+        full_html = render_skeleton(
+            skeleton_html=skeleton,
+            style_spec=style_spec,
+            headline=headline,
+            page=page,
+            total=total,
+            content=content_html,
+            speaker_notes=slide_info.get("speaker_notes", ""),
+        )
+
+        return slide_info, full_html
 
 
 @tool
@@ -69,7 +91,11 @@ async def generate_slides() -> str:
     with open(outline_path, "r", encoding="utf-8") as f:
         outline = json.load(f)
     with open(style_spec_path, "r", encoding="utf-8") as f:
-        style_spec = f.read()
+        style_spec = json.load(f)
+
+    # Load template_key from session state
+    state = SessionState.load(session_dir / "session.json")
+    template_key = state.template_key or ""
 
     slides = outline["slides"]
     total = len(slides)
@@ -80,7 +106,8 @@ async def generate_slides() -> str:
     slides_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        _generate_one_slide(sem, model, s, total, style_spec) for s in slides
+        _generate_one_slide(sem, model, s, total, style_spec, template_key)
+        for s in slides
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
 

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}};
+  line-height: {{line_height}};
+  color: #ffffff;
+  background: {{primary}};
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  position: relative;
+}
+.slide-content {
+  text-align: center;
+  padding: 0 120px;
+}
+.slide-content h1 {
+  font-size: {{title_size}};
+  font-weight: 700;
+  line-height: 1.3;
+  margin-bottom: 16px;
+}
+.slide-content p {
+  font-size: {{body_size}};
+  opacity: 0.8;
+  line-height: 1.6;
+}
+.accent-line {
+  width: 60px; height: 4px;
+  background: {{accent}};
+  margin: 0 auto 24px;
+}
+.slide-footer {
+  position: absolute;
+  bottom: 30px; right: 60px;
+  font-size: {{small_size}};
+  opacity: 0.6;
+}
+</style>
+</head>
+<body>
+<div class="slide-content">
+  <div class="accent-line"></div>
+  <h1>{headline}</h1>
+{content}
+</div>
+<div class="slide-footer">{page} / {total}</div>
+{speaker_notes}
+</body>
+</html>

@@ -33,6 +33,7 @@ class SlideItem(BaseModel):
     supporting_points: list[SupportingPoint] = Field(default_factory=list)
     speaker_notes: str = ""
     section: str = ""                             # narrative role: situation/complication/...
+    visual_hint: str = ""                         # table / comparison / timeline / process / chart / quote_highlight
 
 
 class NarrativeFramework(BaseModel):
