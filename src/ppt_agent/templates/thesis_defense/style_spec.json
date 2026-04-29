@@ -1,0 +1,41 @@
+{
+  "name": "简约答辩",
+  "description": "学术答辩风格，蓝白磨砂玻璃卡片配动态光斑背景，适合毕业答辩、学术汇报、课题报告",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#001f3f",
+    "secondary": "#0074D9",
+    "accent": "#7FDBFF",
+    "background": "#f0f7ff",
+    "card_bg": "rgba(255, 255, 255, 0.7)",
+    "text": "#001f3f",
+    "text_light": "rgba(0, 60, 120, 0.6)",
+    "border": "rgba(0, 60, 120, 0.15)"
+  },
+  "typography": {
+    "title_font": "'Inter', 'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Inter', 'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "36px",
+    "subtitle_size": "24px",
+    "body_size": "18px",
+    "small_size": "14px",
+    "line_height": "1.7"
+  },
+  "layout": {
+    "margin": "50px 70px",
+    "border_radius": "30px"
+  },
+  "emphasis": {
+    "high": { "font_size": "22px", "color": "#0074D9", "font_weight": "bold" },
+    "medium": { "font_size": "18px", "color": "#001f3f", "font_weight": "normal" },
+    "low": { "font_size": "14px", "color": "rgba(0, 60, 120, 0.5)", "font_weight": "normal" }
+  },
+  "component_styles": {
+    "cover": "磨砂玻璃卡片居中，浅蓝背景上有缓慢移动的蓝色光斑动画，标题使用深蓝粗体，底部渐变装饰线",
+    "toc": "磨砂玻璃卡片，标题在顶部，目录列表使用蓝色圆点标记，每项配编号",
+    "content": "磨砂玻璃卡片，顶部标题栏加蓝色分隔线，要点使用蓝色圆点，左侧蓝色边框高亮框",
+    "section": "磨砂玻璃卡片，居中显示章节标题，蓝色渐变装饰线",
+    "ending": "磨砂玻璃卡片，居中显示「谢谢」，整体简洁留白"
+  }
+}

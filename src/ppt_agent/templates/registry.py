@@ -81,6 +81,7 @@ def render_skeleton(
         "text_light": colors.get("text_light", "#718096"),
         "border_color": colors.get("border", "#e2e8f0"),
         "title_font": typo.get("title_font", "'Microsoft YaHei', sans-serif"),
+        "body_font": typo.get("body_font", typo.get("title_font", "'Microsoft YaHei', sans-serif")),
         "title_size": typo.get("title_size", "44px"),
         "subtitle_size": typo.get("subtitle_size", "28px"),
         "body_size": typo.get("body_size", "20px"),

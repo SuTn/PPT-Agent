@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: {{primary}}; --secondary: {{secondary}}; --accent: {{accent}};
+  --accent-2: {{accent_2}}; --bg: {{background}}; --card-bg: {{card_bg}};
+  --text: {{text_color}}; --text-light: {{text_light}}; --border: {{border_color}};
+}
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}}; line-height: {{line_height}};
+  color: {{text_color}}; background: {{background}};
+  display: flex; flex-direction: column; position: relative;
+  background-image:
+    linear-gradient(rgba(0,255,255,0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,255,0.08) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+body::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.15) 3px, rgba(0,0,0,0.15) 4px);
+}
+.hud-tl, .hud-br { position: absolute; width: 50px; height: 50px; z-index: 2; }
+.hud-tl { top: 30px; left: 30px; border-top: 2px solid {{accent}}; border-left: 2px solid {{accent}}; }
+.hud-br { bottom: 30px; right: 30px; border-bottom: 2px solid {{accent}}; border-right: 2px solid {{accent}}; }
+.slide-headline {
+  font-size: {{subtitle_size}}; font-weight: 700; color: #fff; padding: 44px 60px 8px;
+  text-shadow: 0 0 5px #fff, 0 0 15px {{accent}}; flex-shrink: 0; position: relative; z-index: 1;
+}
+.divider { height: 2px; background: linear-gradient(90deg, {{primary}}, transparent); margin: 0 60px 24px; position: relative; z-index: 1; }
+.slide-content { flex: 1; padding: 0 60px; overflow: hidden; position: relative; z-index: 1; }
+.sys-footer {
+  text-align: right; padding: 0 60px 24px;
+  font-family: {{body_font}}; font-size: {{small_size}}; color: {{accent}};
+  text-shadow: 0 0 5px {{accent}}; flex-shrink: 0; position: relative; z-index: 4;
+}
+</style>
+</head>
+<body>
+<div class="hud-tl"></div>
+<div class="hud-br"></div>
+<div class="slide-headline">{headline}</div>
+<div class="divider"></div>
+<div class="slide-content">
+{content}
+</div>
+<div class="sys-footer">SYS:ONLINE | {page}/{total}</div>
+{speaker_notes}
+</body>
+</html>

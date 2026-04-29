@@ -1,0 +1,41 @@
+{
+  "name": "中国泼墨",
+  "description": "传统水墨风格，宣纸纹理配泼墨装饰和朱红印章，适合文化教育、政府汇报、传统艺术展示",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#1a1a1a",
+    "secondary": "#333333",
+    "accent": "#c0392b",
+    "background": "#f7f3e9",
+    "card_bg": "rgba(247, 243, 233, 0.85)",
+    "text": "#3d3d3d",
+    "text_light": "#777777",
+    "border": "rgba(0, 0, 0, 0.12)"
+  },
+  "typography": {
+    "title_font": "'KaiTi', 'STKaiti', 'SimSun', serif",
+    "body_font": "'KaiTi', 'STKaiti', 'SimSun', serif",
+    "title_size": "40px",
+    "subtitle_size": "28px",
+    "body_size": "18px",
+    "small_size": "14px",
+    "line_height": "1.8"
+  },
+  "layout": {
+    "margin": "50px 70px",
+    "paper_texture": true
+  },
+  "emphasis": {
+    "high": { "font_size": "22px", "color": "#c0392b", "font_weight": "bold" },
+    "medium": { "font_size": "18px", "color": "#3d3d3d", "font_weight": "normal" },
+    "low": { "font_size": "14px", "color": "#999999", "font_weight": "normal" }
+  },
+  "component_styles": {
+    "cover": "宣纸纹理背景，左上角 SVG 墨迹装饰，标题使用楷体黑色，底部朱红色装饰线，整体古典雅致",
+    "toc": "宣纸纹理背景，标题楷体，目录使用朱红色圆点标记，配简洁编号",
+    "content": "宣纸纹理背景，标题下方有毛笔笔触装饰线，要点使用朱红色方形标记，右侧朱红边框高亮框，行距宽松",
+    "section": "宣纸纹理背景，居中楷体章节标题，朱红色装饰线，整体留白充分",
+    "ending": "宣纸纹理背景，居中「谢谢」，右下角朱红印章样式页脚"
+  }
+}

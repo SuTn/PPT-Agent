@@ -362,7 +362,11 @@ ppt-agent/
 │   │   ├── tech_dark/
 │   │   ├── education/
 │   │   ├── creative/
-│   │   └── report/
+│   │   ├── report/
+│   │   ├── thesis_defense/
+│   │   ├── sunset/
+│   │   ├── chinese_ink/
+│   │   └── cyberpunk/
 │   │
 │   ├── export/
 │   │   ├── renderer.py         # Playwright sync API（thread-local 浏览器复用）
@@ -436,7 +440,7 @@ web/
 - [x] 单张幻灯片重试（备份/恢复机制，cache busting 刷新 iframe）
 - [x] 模板库（侧边栏入口，Teleport 模态框，渐变色条 + 调色板预览）
 - [x] 并发 PNG 渲染（浏览器复用 + Semaphore + 容错）
-- [x] 5 个预设模板
+- [x] 9 个预设模板
 - [x] Playwright 2x 截图 + python-pptx 导出
 - [x] 4 个 LLM 提供商
 - [x] Outline Pydantic 校验 + 结构化重试

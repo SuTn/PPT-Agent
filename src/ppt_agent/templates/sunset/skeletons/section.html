@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: {{primary}}; --secondary: {{secondary}}; --accent: {{accent}};
+  --accent-2: {{accent}}; --bg: {{background}}; --card-bg: {{card_bg}};
+  --text: {{text_color}}; --text-light: {{text_light}}; --border: {{border_color}};
+}
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}}; line-height: {{line_height}};
+  color: {{text_color}}; background: {{background}};
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.accent-bar {
+  position: absolute; left: 0; top: 0; width: 6px; height: 100%;
+  background: linear-gradient(180deg, {{primary}}, transparent 70%); z-index: 2;
+}
+.mountains {
+  position: absolute; bottom: 0; left: 0; width: 100%; height: 120px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1280 120'%3E%3Cpath d='M0,120 L0,80 Q160,20 320,70 T640,40 T960,65 T1280,50 L1280,120 Z' fill='rgba(26,29,36,0.4)'/%3E%3Cpath d='M0,120 L0,95 Q200,50 400,85 T800,60 T1200,80 L1280,75 L1280,120 Z' fill='rgba(26,29,36,0.7)'/%3E%3C/svg%3E") no-repeat bottom;
+  pointer-events: none; z-index: 1;
+}
+.slide-content { text-align: center; padding: 0 120px; position: relative; z-index: 2; }
+.slide-content h1 { font-size: {{title_size}}; font-weight: 700; color: {{primary}}; line-height: 1.3; margin-bottom: 16px; }
+.slide-content p { font-size: {{body_size}}; color: {{text_light}}; line-height: 1.6; }
+.accent-line { width: 80px; height: 4px; background: {{primary}}; margin: 0 auto 24px; border-radius: 2px; }
+.slide-footer { position: absolute; bottom: 24px; right: 60px; font-size: {{small_size}}; color: {{text_light}}; z-index: 2; }
+</style>
+</head>
+<body>
+<div class="accent-bar"></div>
+<div class="slide-content">
+  <div class="accent-line"></div>
+  <h1>{headline}</h1>
+{content}
+</div>
+<div class="mountains"></div>
+<div class="slide-footer">{page} / {total}</div>
+{speaker_notes}
+</body>
+</html>

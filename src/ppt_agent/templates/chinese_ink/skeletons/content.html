@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: {{primary}}; --secondary: {{secondary}}; --accent: {{accent}};
+  --accent-2: {{accent}}; --bg: {{background}}; --card-bg: {{card_bg}};
+  --text: {{text_color}}; --text-light: {{text_light}}; --border: {{border_color}};
+}
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}}; line-height: {{line_height}};
+  color: {{text_color}}; background: {{background}};
+  display: flex; flex-direction: column; position: relative;
+}
+body::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0.06;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.8' numOctaves='6' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.ink-splash {
+  position: absolute; top: -20px; left: -30px; width: 280px; height: 280px; opacity: 0.08;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Cpath d='M40,80 C60,30 90,10 120,40 C150,70 170,30 160,80 C150,130 170,160 130,170 C90,180 60,160 50,130 C40,100 20,110 40,80 Z' fill='%23333'/%3E%3C/svg%3E") no-repeat;
+  transform: rotate(25deg); pointer-events: none;
+}
+.slide-headline {
+  font-size: {{subtitle_size}}; font-weight: normal; color: {{primary}};
+  padding: 36px 70px 0; flex-shrink: 0; position: relative; z-index: 1;
+}
+.brush-divider {
+  height: 3px; margin: 12px 70px 20px; position: relative; z-index: 1;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1140 3'%3E%3Cpath d='M0,1.5 C50,0 100,3 150,1.5 C200,0 250,3 300,1.5 C350,0 400,3 450,1.5 C500,0 550,3 600,1.5 C650,0 700,3 750,1.5 C800,0 850,3 900,1.5 C950,0 1000,3 1050,1.5 C1100,0 1140,3 1140,1.5' stroke='%23990000' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center;
+}
+.slide-content { flex: 1; padding: 0 70px; overflow: hidden; position: relative; z-index: 1; }
+.seal {
+  position: absolute; bottom: 30px; right: 60px;
+  background: {{accent}}; color: {{background}}; font-size: 12px; font-weight: bold;
+  padding: 6px 12px; border-radius: 2px; border: 1px solid {{accent}};
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
+}
+</style>
+</head>
+<body>
+<div class="ink-splash"></div>
+<div class="slide-headline">{headline}</div>
+<div class="brush-divider"></div>
+<div class="slide-content">
+{content}
+</div>
+<div class="seal">{page} / {total}</div>
+{speaker_notes}
+</body>
+</html>

@@ -1,0 +1,41 @@
+{
+  "name": "日落大道",
+  "description": "暖色暗调风格，金色装饰条搭配山脉剪影，适合品牌提案、创意展示、产品发布",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#F59E0B",
+    "secondary": "#D97706",
+    "accent": "#FBBF24",
+    "background": "#1a1d24",
+    "card_bg": "rgba(26, 29, 36, 0.85)",
+    "text": "#F1F5F9",
+    "text_light": "#94A3B8",
+    "border": "rgba(245, 158, 11, 0.2)"
+  },
+  "typography": {
+    "title_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "body_font": "'Microsoft YaHei', 'PingFang SC', sans-serif",
+    "title_size": "40px",
+    "subtitle_size": "26px",
+    "body_size": "18px",
+    "small_size": "14px",
+    "line_height": "1.7"
+  },
+  "layout": {
+    "margin": "50px 80px",
+    "accent_bar_width": "6px"
+  },
+  "emphasis": {
+    "high": { "font_size": "22px", "color": "#F59E0B", "font_weight": "bold" },
+    "medium": { "font_size": "18px", "color": "#F1F5F9", "font_weight": "normal" },
+    "low": { "font_size": "14px", "color": "#64748B", "font_weight": "normal" }
+  },
+  "component_styles": {
+    "cover": "深色背景，左边缘金色渐变竖条，右上方暖色光斑，底部 SVG 山脉剪影，标题使用金色粗体",
+    "toc": "深色背景，左侧金色竖条，标题金色，目录列表使用金色圆点",
+    "content": "深色背景，左侧金色竖条，标题金色带底部装饰线，内容使用浅色文字，卡片使用半透明深色背景",
+    "section": "深色背景，居中金色章节标题，底部山脉剪影，金色渐变装饰线",
+    "ending": "深色背景，居中显示「谢谢」，底部山脉剪影，金色装饰线"
+  }
+}

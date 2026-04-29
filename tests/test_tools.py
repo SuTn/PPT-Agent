@@ -8,7 +8,7 @@ def test_template_registry():
     from ppt_agent.templates.registry import list_all_templates, load_template
 
     templates = list_all_templates()
-    assert len(templates) == 5
+    assert len(templates) == 9
 
     for t in templates:
         spec = load_template(t["key"])

@@ -1,0 +1,42 @@
+{
+  "name": "赛博朋克",
+  "description": "未来科技风格，霓虹网格背景配扫描线效果和 HUD 角标，适合科技产品、游戏发布、前沿技术展示",
+  "version": "1.0",
+  "canvas": { "width": 1280, "height": 720 },
+  "colors": {
+    "primary": "#00ffff",
+    "secondary": "#0a041a",
+    "accent": "#ff00ff",
+    "accent_2": "#7B2FBE",
+    "background": "#0a041a",
+    "card_bg": "rgba(10, 4, 26, 0.8)",
+    "text": "#e0e0e0",
+    "text_light": "#a7d1d9",
+    "border": "rgba(0, 255, 255, 0.3)"
+  },
+  "typography": {
+    "title_font": "'Segoe UI', 'Microsoft YaHei', sans-serif",
+    "body_font": "'Cascadia Mono', 'Consolas', 'Microsoft YaHei Mono', monospace",
+    "title_size": "36px",
+    "subtitle_size": "24px",
+    "body_size": "17px",
+    "small_size": "13px",
+    "line_height": "1.7"
+  },
+  "layout": {
+    "margin": "40px 60px",
+    "grid_size": "40px"
+  },
+  "emphasis": {
+    "high": { "font_size": "22px", "color": "#00ffff", "font_weight": "bold", "glow": "text-shadow: 0 0 10px #00ffff" },
+    "medium": { "font_size": "17px", "color": "#e0e0e0", "font_weight": "normal" },
+    "low": { "font_size": "13px", "color": "#64748B", "font_weight": "normal" }
+  },
+  "component_styles": {
+    "cover": "深紫色背景配 cyan 网格线，扫描线动画叠加，HUD 角标装饰（品红色边框），标题使用白色带品红发光效果",
+    "toc": "网格背景，标题带品红发光，目录使用 >> 终端提示符样式标记",
+    "content": "网格背景配 HUD 角标，标题带 cyan 渐变底线，内容使用浅色等宽字体，高亮框使用切角 clip-path，要点使用 >> 终端提示符",
+    "section": "网格背景，居中标题带品红发光效果，扫描线动画",
+    "ending": "网格背景，居中大号 THANK YOU 带 cyan 发光，系统状态样式页脚"
+  }
+}

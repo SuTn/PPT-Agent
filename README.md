@@ -96,6 +96,10 @@ npm run dev
 - `education` — 教育培训（清新绿色）
 - `creative` — 创意设计（渐变 + 不对称布局）
 - `report` — 数据报告（灰白 + 图表元素）
+- `thesis_defense` — 简约答辩（蓝白毛玻璃 + 动态光斑）
+- `sunset` — 日落大道（暖色调暗色 + SVG 山脉剪影 + 金色装饰条）
+- `chinese_ink` — 中国风（宣纸纹理 + 水墨装饰 + 篆刻印章）
+- `cyberpunk` — 赛博朋克（网格背景 + 扫描线 + HUD 角标 + 霓虹发光）
 
 每个模板均定义了三级强调样式（high/medium/low），用于视觉层次控制。
 

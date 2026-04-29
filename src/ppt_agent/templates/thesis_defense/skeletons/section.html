@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>{headline}</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: {{primary}}; --secondary: {{secondary}}; --accent: {{accent}};
+  --accent-2: {{accent}}; --bg: {{background}}; --card-bg: {{card_bg}};
+  --text: {{text_color}}; --text-light: {{text_light}}; --border: {{border_color}};
+}
+body {
+  width: 1280px; height: 720px; overflow: hidden;
+  font-family: {{title_font}}; line-height: {{line_height}};
+  color: {{text_color}}; background: {{background}};
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+body::before, body::after {
+  content: ''; position: absolute; border-radius: 50%;
+  filter: blur(80px); opacity: 0.5; pointer-events: none; z-index: 0;
+}
+body::before {
+  width: 600px; height: 600px; top: -150px; left: 50%;
+  background: radial-gradient(circle, {{secondary}}, transparent 70%);
+  animation: blob1 25s ease-in-out infinite alternate;
+}
+body::after {
+  width: 400px; height: 400px; bottom: -80px; right: 10%;
+  background: radial-gradient(circle, {{accent}}, transparent 70%);
+  animation: blob2 20s ease-in-out infinite alternate;
+}
+@keyframes blob1 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(-60px,40px) scale(1.2); } }
+@keyframes blob2 { 0% { transform: translate(0,0) scale(1); } 100% { transform: translate(40px,-30px) scale(1.15); } }
+.glass {
+  position: relative; z-index: 1;
+  width: 1100px; height: 560px;
+  background: {{card_bg}}; backdrop-filter: blur(30px) saturate(120%);
+  border-radius: 30px; border: 1px solid {{border_color}};
+  box-shadow: inset 0 0 1px 1px rgba(0,100,200,0.1), 0 8px 32px rgba(0,60,120,0.08);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px;
+}
+.glass h1 { font-size: {{title_size}}; font-weight: 700; color: {{primary}}; text-align: center; line-height: 1.4; margin-bottom: 16px; }
+.accent-line { width: 80px; height: 4px; background: linear-gradient(90deg, {{secondary}}, {{accent}}); border-radius: 2px; margin-bottom: 24px; }
+.slide-content { text-align: center; }
+.slide-content p { font-size: {{body_size}}; color: {{text_light}}; line-height: 1.6; }
+.slide-footer { position: absolute; bottom: 30px; right: 60px; font-size: {{small_size}}; color: {{text_light}}; }
+</style>
+</head>
+<body>
+<div class="glass">
+  <div class="accent-line"></div>
+  <h1>{headline}</h1>
+  <div class="slide-content">
+  {content}
+  </div>
+</div>
+<div class="slide-footer">{page} / {total}</div>
+{speaker_notes}
+</body>
+</html>
