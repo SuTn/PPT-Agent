@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import random
-import re
-from collections import OrderedDict
-from urllib.parse import urlparse
+import threading
+from urllib.parse import quote_plus, urlparse
 
 import httpx
 import trafilatura
@@ -55,7 +54,7 @@ class TavilySearchProvider:
 
 
 # ---------------------------------------------------------------------------
-# Playwright-based browser search
+# Playwright-based browser search (sync API + asyncio.to_thread, Windows-safe)
 # ---------------------------------------------------------------------------
 
 _NON_HTML_EXTENSIONS = frozenset([
@@ -67,11 +66,8 @@ _BING_URL = "https://www.bing.com/search"
 
 _STEALTH_JS = """
 () => {
-    // Remove webdriver flag
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    // Override plugins to look like a real browser
     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-    // Override languages
     Object.defineProperty(navigator, 'languages', { get: () => ['zh-CN', 'zh', 'en'] });
 }
 """
@@ -81,6 +77,9 @@ _USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
 ]
+
+# Per-thread browser instance (sync API, thread-safe)
+_thread_local = threading.local()
 
 
 def _is_html_url(url: str) -> bool:
@@ -103,47 +102,105 @@ def _extract_text(html: str, max_chars: int = 2000) -> str:
     return text
 
 
+def _get_thread_browser():
+    """Get or create a sync Playwright browser for the current thread."""
+    if not hasattr(_thread_local, "browser") or _thread_local.browser is None:
+        from playwright.sync_api import sync_playwright
+        pw = sync_playwright().start()
+        _thread_local.playwright = pw
+        _thread_local.browser = pw.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+    return _thread_local.browser
+
+
+def _sync_bing_search(query: str, max_entries: int) -> list[dict]:
+    """Navigate to Bing, parse SERP entries (sync, runs in thread)."""
+    browser = _get_thread_browser()
+    context = browser.new_context(
+        user_agent=random.choice(_USER_AGENTS),
+        locale="zh-CN",
+    )
+    page = context.new_page()
+    try:
+        page.add_init_script(_STEALTH_JS)
+        encoded_query = quote_plus(query)
+        page.goto(
+            f"{_BING_URL}?q={encoded_query}&count={max_entries}",
+            wait_until="domcontentloaded",
+            timeout=15000,
+        )
+        page.wait_for_selector(".b_algo", timeout=5000)
+
+        entries = []
+        elements = page.query_selector_all(".b_algo")
+        for el in elements:
+            link = el.query_selector("h2 a")
+            if not link:
+                continue
+            title = link.inner_text().strip()
+            href = link.get_attribute("href")
+            if not title or not href:
+                continue
+            if not _is_html_url(href):
+                continue
+
+            snippet_el = el.query_selector(".b_caption p, .b_lineclamp2")
+            snippet = snippet_el.inner_text().strip() if snippet_el else ""
+
+            entries.append({"title": title, "url": href, "snippet": snippet})
+            if len(entries) >= max_entries:
+                break
+        return entries
+    except Exception:
+        return []
+    finally:
+        context.close()
+
+
+def _sync_fetch_page(entry: dict) -> SearchResult | None:
+    """Fetch a page and extract main text via trafilatura (sync, runs in thread)."""
+    browser = _get_thread_browser()
+    context = browser.new_context(
+        user_agent=random.choice(_USER_AGENTS),
+        locale="zh-CN",
+    )
+    page = context.new_page()
+    try:
+        page.add_init_script(_STEALTH_JS)
+        page.goto(entry["url"], wait_until="networkidle", timeout=10000)
+        html = page.content()
+        text = _extract_text(html)
+
+        if len(text) < 200:
+            text = entry["snippet"]
+
+        import time
+        time.sleep(random.uniform(0.5, 1.5))
+
+        if not text:
+            return None
+        return SearchResult(title=entry["title"], url=entry["url"], content=text)
+    except Exception:
+        if entry["snippet"]:
+            return SearchResult(title=entry["title"], url=entry["url"], content=entry["snippet"])
+        return None
+    finally:
+        context.close()
+
+
 class PlaywrightSearchProvider:
     """Search via Playwright-operated browser (Bing).
 
-    Shares a single browser instance across concurrent calls.
-    Lifecycle: lazy init on first search, explicit close via aclose().
+    Uses sync API + asyncio.to_thread for Windows compatibility.
+    Per-thread browser instances via threading.local.
     """
-
-    def __init__(self):
-        self._browser = None
-        self._playwright = None
-        self._lock = asyncio.Lock()
-
-    async def _ensure_browser(self):
-        """Lazy-start browser with stealth. Protected by lock."""
-        if self._browser:
-            return
-        async with self._lock:
-            if self._browser:
-                return
-            from playwright.async_api import async_playwright
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=True,
-                args=["--disable-blink-features=AutomationControlled"],
-            )
-
-    async def aclose(self):
-        """Close browser and playwright."""
-        if self._browser:
-            await self._browser.close()
-            self._browser = None
-        if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
 
     async def search(self, query: str, max_results: int = 3) -> list[SearchResult]:
         """Search Bing, fetch top results, extract content."""
-        await self._ensure_browser()
-
-        # Step 1: search Bing, extract SERP entries
-        entries = await self._search_bing(query, max_results)
+        # Step 1: search Bing (runs in thread)
+        entries = await asyncio.to_thread(_sync_bing_search, query, max_results * 2)
         if not entries:
             return []
 
@@ -157,110 +214,60 @@ class PlaywrightSearchProvider:
                 unique.append(e)
         unique = unique[:max_results]
 
-        # Step 2: fetch pages and extract content (concurrent)
-        results = []
-        tasks = [self._fetch_page(e) for e in unique]
+        # Step 2: fetch pages concurrently (each in its own thread)
+        tasks = [asyncio.to_thread(_sync_fetch_page, e) for e in unique]
         outcomes = await asyncio.gather(*tasks, return_exceptions=True)
 
+        results = []
         for entry, outcome in zip(unique, outcomes):
             if isinstance(outcome, Exception):
                 # SERP snippet as fallback
-                results.append(SearchResult(
-                    title=entry["title"], url=entry["url"], content=entry["snippet"],
-                ))
-            else:
+                if entry["snippet"]:
+                    results.append(SearchResult(
+                        title=entry["title"], url=entry["url"], content=entry["snippet"],
+                    ))
+            elif outcome is not None:
                 results.append(outcome)
 
         return results
 
-    async def _search_bing(self, query: str, max_results: int) -> list[dict]:
-        """Navigate to Bing, parse SERP entries."""
-        context = await self._browser.new_context(
-            user_agent=random.choice(_USER_AGENTS),
-            locale="zh-CN",
-        )
-        page = await context.new_page()
-        try:
-            await page.add_init_script(_STEALTH_JS)
-            await page.goto(
-                f"{_BING_URL}?q={query}&count={max_results * 2}",
-                wait_until="domcontentloaded",
-                timeout=15000,
-            )
-            # Wait for results to render
-            await page.wait_for_selector(".b_algo", timeout=5000)
 
-            entries = []
-            elements = await page.query_selector_all(".b_algo")
-            for el in elements:
-                link = await el.query_selector("h2 a")
-                if not link:
-                    continue
-                title = (await link.inner_text()).strip()
-                href = await link.get_attribute("href")
-                if not title or not href:
-                    continue
-                if not _is_html_url(href):
-                    continue
+# ---------------------------------------------------------------------------
+# Provider factory (cached singleton)
+# ---------------------------------------------------------------------------
 
-                snippet_el = await el.query_selector(".b_caption p, .b_lineclamp2")
-                snippet = ""
-                if snippet_el:
-                    snippet = (await snippet_el.inner_text()).strip()
-
-                entries.append({"title": title, "url": href, "snippet": snippet})
-                if len(entries) >= max_results * 2:
-                    break
-            return entries
-        except Exception:
-            return []
-        finally:
-            await context.close()
-
-    async def _fetch_page(self, entry: dict) -> SearchResult | None:
-        """Fetch a page and extract main text via trafilatura."""
-        context = await self._browser.new_context(
-            user_agent=random.choice(_USER_AGENTS),
-            locale="zh-CN",
-        )
-        page = await context.new_page()
-        try:
-            await page.add_init_script(_STEALTH_JS)
-            await page.goto(
-                entry["url"],
-                wait_until="networkidle",
-                timeout=10000,
-            )
-            html = await page.content()
-            text = _extract_text(html)
-
-            # If extraction failed or too short, use SERP snippet
-            if len(text) < 200:
-                text = entry["snippet"]
-
-            # Small random delay to avoid looking like a bot
-            await asyncio.sleep(random.uniform(0.5, 1.5))
-
-            if not text:
-                return None
-
-            return SearchResult(title=entry["title"], url=entry["url"], content=text)
-        except Exception:
-            # Fallback to SERP snippet
-            if entry["snippet"]:
-                return SearchResult(
-                    title=entry["title"], url=entry["url"], content=entry["snippet"],
-                )
-            return None
-        finally:
-            await context.close()
+_cached_provider: SearchProvider | None = None
+_cached_provider_key: str = ""
 
 
 def get_search_provider() -> SearchProvider | None:
-    """Return a search provider based on config, or None if search is disabled."""
-    provider = settings.search_provider.lower()
-    if provider == "tavily" and settings.tavily_api_key:
-        return TavilySearchProvider(settings.tavily_api_key)
-    if provider == "playwright":
-        return PlaywrightSearchProvider()
-    return None
+    """Return a cached search provider based on config, or None if disabled."""
+    global _cached_provider, _cached_provider_key
+
+    provider_key = settings.search_provider.lower()
+    if provider_key != _cached_provider_key:
+        _cached_provider_key = provider_key
+        if provider_key == "tavily" and settings.tavily_api_key:
+            _cached_provider = TavilySearchProvider(settings.tavily_api_key)
+        elif provider_key == "playwright":
+            _cached_provider = PlaywrightSearchProvider()
+        else:
+            _cached_provider = None
+
+    return _cached_provider
+
+
+def cleanup_browser_threads():
+    """Close browser instances in all threads after research completes."""
+    if hasattr(_thread_local, "browser") and _thread_local.browser:
+        try:
+            _thread_local.browser.close()
+        except Exception:
+            pass
+        _thread_local.browser = None
+    if hasattr(_thread_local, "playwright") and _thread_local.playwright:
+        try:
+            _thread_local.playwright.stop()
+        except Exception:
+            pass
+        _thread_local.playwright = None

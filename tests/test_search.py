@@ -8,6 +8,8 @@ from ppt_agent.search import (
     _is_html_url,
     _extract_domain,
     _extract_text,
+    _sync_bing_search,
+    _extract_text as _orig_extract_text,
 )
 from ppt_agent.prompts.research import _search_results_section
 
@@ -44,26 +46,43 @@ class TestSearchResultsSection:
 
 class TestGetSearchProvider:
     def test_returns_none_when_not_configured(self, monkeypatch):
+        import ppt_agent.search as mod
         monkeypatch.setattr("ppt_agent.search.settings.search_provider", "")
         monkeypatch.setattr("ppt_agent.search.settings.tavily_api_key", "")
+        mod._cached_provider_key = "__reset__"  # invalidate cache
         assert get_search_provider() is None
 
     def test_returns_none_when_no_key(self, monkeypatch):
+        import ppt_agent.search as mod
         monkeypatch.setattr("ppt_agent.search.settings.search_provider", "tavily")
         monkeypatch.setattr("ppt_agent.search.settings.tavily_api_key", "")
+        mod._cached_provider_key = "__reset__"
         assert get_search_provider() is None
 
     def test_returns_tavily_when_configured(self, monkeypatch):
+        import ppt_agent.search as mod
         monkeypatch.setattr("ppt_agent.search.settings.search_provider", "tavily")
         monkeypatch.setattr("ppt_agent.search.settings.tavily_api_key", "tvly-test")
+        mod._cached_provider_key = "__reset__"
         provider = get_search_provider()
         assert isinstance(provider, TavilySearchProvider)
         assert provider._api_key == "tvly-test"
 
     def test_returns_playwright_when_configured(self, monkeypatch):
+        import ppt_agent.search as mod
         monkeypatch.setattr("ppt_agent.search.settings.search_provider", "playwright")
+        mod._cached_provider_key = "__reset__"
         provider = get_search_provider()
         assert isinstance(provider, PlaywrightSearchProvider)
+
+    def test_caches_provider_instance(self, monkeypatch):
+        import ppt_agent.search as mod
+        monkeypatch.setattr("ppt_agent.search.settings.search_provider", "tavily")
+        monkeypatch.setattr("ppt_agent.search.settings.tavily_api_key", "tvly-test")
+        mod._cached_provider_key = "__reset__"
+        p1 = get_search_provider()
+        p2 = get_search_provider()
+        assert p1 is p2  # same instance
 
 
 class TestTavilySearchProvider:

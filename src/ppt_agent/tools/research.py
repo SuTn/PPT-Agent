@@ -17,7 +17,7 @@ from ppt_agent.prompts.research import (
     _research_requirements_section,
     _search_results_section,
 )
-from ppt_agent.search import get_search_provider
+from ppt_agent.search import get_search_provider, cleanup_browser_threads
 
 _MAX_RETRIES = 3
 
@@ -219,4 +219,7 @@ async def research_topic(topic: str, requirements: str = "") -> str:
 
     # Include a preview so the agent can present findings to the user
     preview = research_notes[:800] if len(research_notes) > 800 else research_notes
-    return f"{summary}\n\n研究笔记摘要：\n{preview}"
+    result = f"{summary}\n\n研究笔记摘要：\n{preview}"
+
+    cleanup_browser_threads()
+    return result
