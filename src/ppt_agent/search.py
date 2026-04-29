@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import random
-import threading
 from urllib.parse import quote_plus, urlparse
 
 import httpx
@@ -55,6 +54,7 @@ class TavilySearchProvider:
 
 # ---------------------------------------------------------------------------
 # Playwright-based browser search (sync API + asyncio.to_thread, Windows-safe)
+# Reuses renderer's browser infrastructure — no duplicate Chromium processes.
 # ---------------------------------------------------------------------------
 
 _NON_HTML_EXTENSIONS = frozenset([
@@ -78,12 +78,8 @@ _USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0",
 ]
 
-# Per-thread browser instance (sync API, thread-safe)
-_thread_local = threading.local()
-
 
 def _is_html_url(url: str) -> bool:
-    """Skip non-HTML resources based on URL path extension."""
     path = urlparse(url).path.lower()
     return not any(path.endswith(ext) for ext in _NON_HTML_EXTENSIONS)
 
@@ -93,7 +89,6 @@ def _extract_domain(url: str) -> str:
 
 
 def _extract_text(html: str, max_chars: int = 2000) -> str:
-    """Extract main text from HTML using trafilatura."""
     text = trafilatura.extract(html)
     if not text:
         return ""
@@ -102,22 +97,11 @@ def _extract_text(html: str, max_chars: int = 2000) -> str:
     return text
 
 
-def _get_thread_browser():
-    """Get or create a sync Playwright browser for the current thread."""
-    if not hasattr(_thread_local, "browser") or _thread_local.browser is None:
-        from playwright.sync_api import sync_playwright
-        pw = sync_playwright().start()
-        _thread_local.playwright = pw
-        _thread_local.browser = pw.chromium.launch(
-            headless=True,
-            args=["--disable-blink-features=AutomationControlled"],
-        )
-    return _thread_local.browser
-
-
 def _sync_bing_search(query: str, max_entries: int) -> list[dict]:
     """Navigate to Bing, parse SERP entries (sync, runs in thread)."""
-    browser = _get_thread_browser()
+    from ppt_agent.export.renderer import _get_or_create_browser
+
+    browser = _get_or_create_browser()
     context = browser.new_context(
         user_agent=random.choice(_USER_AGENTS),
         locale="zh-CN",
@@ -161,7 +145,10 @@ def _sync_bing_search(query: str, max_entries: int) -> list[dict]:
 
 def _sync_fetch_page(entry: dict) -> SearchResult | None:
     """Fetch a page and extract main text via trafilatura (sync, runs in thread)."""
-    browser = _get_thread_browser()
+    import time
+    from ppt_agent.export.renderer import _get_or_create_browser
+
+    browser = _get_or_create_browser()
     context = browser.new_context(
         user_agent=random.choice(_USER_AGENTS),
         locale="zh-CN",
@@ -176,7 +163,6 @@ def _sync_fetch_page(entry: dict) -> SearchResult | None:
         if len(text) < 200:
             text = entry["snippet"]
 
-        import time
         time.sleep(random.uniform(0.5, 1.5))
 
         if not text:
@@ -194,12 +180,11 @@ class PlaywrightSearchProvider:
     """Search via Playwright-operated browser (Bing).
 
     Uses sync API + asyncio.to_thread for Windows compatibility.
-    Per-thread browser instances via threading.local.
+    Reuses renderer's per-thread browser instances via threading.local.
     """
 
     async def search(self, query: str, max_results: int = 3) -> list[SearchResult]:
-        """Search Bing, fetch top results, extract content."""
-        # Step 1: search Bing (runs in thread)
+        # Step 1: search Bing
         entries = await asyncio.to_thread(_sync_bing_search, query, max_results * 2)
         if not entries:
             return []
@@ -214,14 +199,13 @@ class PlaywrightSearchProvider:
                 unique.append(e)
         unique = unique[:max_results]
 
-        # Step 2: fetch pages concurrently (each in its own thread)
+        # Step 2: fetch pages concurrently
         tasks = [asyncio.to_thread(_sync_fetch_page, e) for e in unique]
         outcomes = await asyncio.gather(*tasks, return_exceptions=True)
 
         results = []
         for entry, outcome in zip(unique, outcomes):
             if isinstance(outcome, Exception):
-                # SERP snippet as fallback
                 if entry["snippet"]:
                     results.append(SearchResult(
                         title=entry["title"], url=entry["url"], content=entry["snippet"],
@@ -258,16 +242,10 @@ def get_search_provider() -> SearchProvider | None:
 
 
 def cleanup_browser_threads():
-    """Close browser instances in all threads after research completes."""
-    if hasattr(_thread_local, "browser") and _thread_local.browser:
-        try:
-            _thread_local.browser.close()
-        except Exception:
-            pass
-        _thread_local.browser = None
-    if hasattr(_thread_local, "playwright") and _thread_local.playwright:
-        try:
-            _thread_local.playwright.stop()
-        except Exception:
-            pass
-        _thread_local.playwright = None
+    """Close search browsers after research completes.
+
+    Delegates to renderer's _close_browser which handles
+    the shared threading.local browser.
+    """
+    from ppt_agent.export.renderer import _close_browser
+    _close_browser()
