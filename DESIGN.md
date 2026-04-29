@@ -244,6 +244,7 @@ class Outline(BaseModel):
 - headline 位置和样式统一
 - CSS reset + 基础字体在骨架中定义
 - style_spec 精确映射为 CSS 值
+- `:root` CSS 变量块：9 个主题色变量（`--primary`、`--secondary`、`--accent`、`--accent-2`、`--bg`、`--card-bg`、`--text`、`--text-light`、`--border`），LLM 通过 `var(--xxx)` 引用模板色值，自动适配深色/浅色模板
 
 ### 5.3 Style Spec 结构
 
@@ -256,9 +257,14 @@ class Outline(BaseModel):
     "medium": { "font_size": "20px", "color": "#2d3748", "font_weight": "normal" },
     "low": { "font_size": "16px", "color": "#a0aec0", "font_weight": "normal" }
   },
-  "component_styles": { ... }
+  "component_styles": {
+    "content": "白色背景，顶部蓝色标题栏，要点列表使用灰色圆点，左侧可留蓝色边框装饰",
+    "cover": "深蓝色背景，白色大标题居中，底部橙色装饰线"
+  }
 }
 ```
+
+`component_styles`（per-layout 视觉指导）和 `emphasis`（三级强调：字号/颜色/字重/发光效果）在幻灯片生成时注入 LLM prompt，确保生成内容遵循模板风格。`render_skeleton()` 的 `style_map` 将 `accent_2`、`card_bg`、`border_color` 等扩展字段映射到 CSS 变量，LLM 通过 `var(--card-bg)` 等引用。
 
 ### 5.4 布局类型
 
@@ -294,9 +300,9 @@ SearchProvider (Protocol)
 ### 6.2 集成流程
 
 `_step2_research_dimension` 中，LLM 调用前：
-1. 从 dimension 的 `focus` + `questions` 组合搜索查询
+1. 从 dimension 的 `search_queries`（LLM 在分析阶段预生成的搜索词）取第一个查询
 2. 调用 `SearchProvider.search(query)` 获取结果
-3. 通过 `_search_results_section()` 注入 `RESEARCH_DIMENSION_PROMPT` 的 `{search_section}` 占位符
+3. 通过 `_search_results_section()` 注入 `RESEARCH_DIMENSION_PROMPT` 的 `{search_section}` 占位符，提示 LLM 优先使用搜索事实
 4. 搜索失败不阻断研究（try/except 静默降级为纯 LLM）
 
 ### 6.3 配置
@@ -588,8 +594,29 @@ web/
 
 ### 9.19 研究阶段独立 Tool + research_notes.md
 
-**选择**：`research_topic` 作为独立 tool，3 步内部 LLM 调用（分析→并发维度研究→综合），产出 `research_notes.md`。
-**原因**：研究阶段与大纲生成分离，agent 根据主题复杂度自主决定是否调用。3 步设计确保研究深度：先分析确定维度（MECE），再并发研究各维度，最后综合为结构化笔记。`research_notes.md` 作为 `generate_outline` 的输入素材，与 `materials.md` 模式一致。不做联网搜索，纯 LLM 知识驱动。
+**选择**：`research_topic` 作为独立 tool，3 步内部 LLM 调用（分析→并发维度研究→综合），产出 `research_notes.md`。接受 `audience` 和 `objective` 参数，贯穿三个阶段聚焦内容方向。
+**原因**：研究阶段与大纲生成分离，agent 根据主题复杂度自主决定是否调用。3 步设计确保研究深度：先分析确定维度（MECE），再并发研究各维度，最后综合为结构化笔记。`research_notes.md` 作为 `generate_outline` 的输入素材，与 `materials.md` 模式一致。
+
+研究 prompt 改进：
+- 主题类型感知（商业分析/技术方案/说服提案/知识教育），维度设计参考对应默认结构
+- 维度 3-5 个（MECE），每个附带 2 个预生成的 `search_queries`（具体关键词 + 年份）
+- 信息可靠性分级：`[已验证]`/`[行业共识]`/`[分析推断]`/`[待验证]`
+- 综合阶段主动检测矛盾、标注知识空白、建议 SCQA 叙事框架 + PPT 映射
+
+大纲 prompt 改进：
+- 主题类型检测 + 默认参考结构（商业分析/技术方案/说服提案/知识教育各一套）
+- `_time_hint()` 注入当前日期，避免 LLM 时间盲区
+- 少样本示例（远程办公主题），展示 Action Title、SCQA、evidence、section 页的正确用法
+- 5 项自查清单（headline/递进/论据/visual_hint/section 页）
+- section 页和 body_text 的使用规则
+
+幻灯片 prompt 改进：
+- `:root` CSS 变量（9 个）替代硬编码颜色，LLM 通过 `var(--xxx)` 自动适配深色/浅色模板
+- `component_styles`（per-layout 视觉指导）和 `emphasis`（三级强调）从 style_spec 注入 prompt
+- 6 种 visual_hint 的参考 HTML 代码片段（table/comparison/timeline/process/chart/quote_highlight）
+- evidence_type 渲染示例（data 加粗/quote blockquote/case_study 斜体等）
+- 内容密度指南（1120×480px 可用空间，按要点数量建议字号）
+- 反模式禁止列表（absolute 定位、硬编码宽度、自选颜色、外部资源）
 
 ### 9.20 浏览器标签栏通知
 

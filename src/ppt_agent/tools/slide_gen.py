@@ -9,7 +9,7 @@ from ppt_agent.agent.state import SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.progress import get_queue
-from ppt_agent.prompts.slide import SLIDE_PROMPT
+from ppt_agent.prompts.slide import SLIDE_PROMPT, _component_styles_section, _emphasis_section
 from ppt_agent.templates.registry import load_skeleton, render_skeleton
 
 _CODE_FENCE = re.compile(r"```(?:html)?\s*(.*?)\s*```", re.DOTALL)
@@ -43,6 +43,11 @@ async def _generate_one_slide(
         # Load skeleton for this layout
         skeleton = load_skeleton(layout, template_key)
 
+        # Extract template-specific style guidance
+        component_styles = style_spec.get("component_styles", {})
+        layout_style = component_styles.get(layout, "")
+        emphasis = style_spec.get("emphasis", {})
+
         # Generate content area HTML via LLM
         prompt = SLIDE_PROMPT.format(
             page=page,
@@ -56,6 +61,8 @@ async def _generate_one_slide(
             speaker_notes=slide_info.get("speaker_notes", ""),
             section=slide_info.get("section", ""),
             visual_hint=slide_info.get("visual_hint", ""),
+            component_styles_section=_component_styles_section(layout_style),
+            emphasis_section=_emphasis_section(emphasis),
         )
         response = await model.ainvoke([HumanMessage(content=prompt)])
         content_html = _strip_code_fence(response.content)

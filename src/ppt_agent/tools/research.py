@@ -13,6 +13,8 @@ from ppt_agent.prompts.research import (
     RESEARCH_ANALYZE_PROMPT,
     RESEARCH_DIMENSION_PROMPT,
     RESEARCH_SYNTHESIZE_PROMPT,
+    _audience_section,
+    _objective_section,
     _research_materials_section,
     _research_requirements_section,
     _search_results_section,
@@ -76,11 +78,15 @@ async def _read_materials(session_dir: Path) -> str:
     return ""
 
 
-async def _step1_analyze(topic: str, requirements: str, materials: str, model) -> list[dict]:
+async def _step1_analyze(
+    topic: str, requirements: str, materials: str, audience: str, objective: str, model
+) -> list[dict]:
     """Analyze topic and identify research dimensions."""
     prompt = RESEARCH_ANALYZE_PROMPT.format(
         topic=topic,
         requirements_section=_research_requirements_section(requirements),
+        audience_section=_audience_section(audience),
+        objective_section=_objective_section(objective),
         materials_section=_research_materials_section(materials),
     )
 
@@ -98,10 +104,10 @@ async def _step1_analyze(topic: str, requirements: str, materials: str, model) -
 
     # Fallback: use default dimensions
     return [
-        {"name": "核心概念", "focus": "主题的核心定义和基本原理", "questions": ["核心定义是什么？", "关键组成部分有哪些？"]},
-        {"name": "现状与数据", "focus": "当前的行业现状和关键数据", "questions": ["最新的行业数据是什么？", "主要趋势有哪些？"]},
-        {"name": "挑战与机遇", "focus": "面临的主要挑战和发展机遇", "questions": ["核心挑战是什么？", "未来有哪些机遇？"]},
-        {"name": "案例与实践", "focus": "典型案例和实践经验", "questions": ["有哪些成功案例？", "可借鉴的经验是什么？"]},
+        {"name": "核心概念", "focus": "主题的核心定义和基本原理", "search_queries": [f"{topic} 核心概念 定义", f"{topic} 基本原理 关键组成"]},
+        {"name": "现状与数据", "focus": "当前的行业现状和关键数据", "search_queries": [f"{topic} 行业数据 最新趋势", f"{topic} 市场规模 增长率"]},
+        {"name": "挑战与机遇", "focus": "面临的主要挑战和发展机遇", "search_queries": [f"{topic} 挑战 难点", f"{topic} 发展机遇 前景"]},
+        {"name": "案例与实践", "focus": "典型案例和实践经验", "search_queries": [f"{topic} 成功案例 最佳实践", f"{topic} 实施经验 教训"]},
     ]
 
 
@@ -112,6 +118,7 @@ async def _step2_research_dimension(
     materials: str,
     dim: dict,
     model,
+    audience: str = "",
 ) -> str:
     """Research a single dimension, optionally with web search."""
     async with sem:
@@ -119,23 +126,29 @@ async def _step2_research_dimension(
         search_results = []
         search_provider = get_search_provider()
         if search_provider:
-            questions = dim.get("questions", [])
-            query = f"{topic} {dim.get('focus', '')}"
-            if questions:
-                query += f" {questions[0]}"
+            # Use pre-generated search queries, or fall back to topic + focus
+            queries = dim.get("search_queries", [])
+            if not queries:
+                queries = [f"{topic} {dim.get('focus', '')}"]
+            query = queries[0]
             try:
                 search_results = await search_provider.search(query, max_results=5)
             except Exception:
-                pass  # search failure should not block research
+                pass
+
+        audience_value_hint = "这个维度的核心发现如何帮助说服/教育/打动观众"
+        if audience:
+            audience_value_hint = f"这个维度的核心发现如何帮助打动「{audience}」，他们最关心什么"
 
         prompt = RESEARCH_DIMENSION_PROMPT.format(
             topic=topic,
             requirements_section=_research_requirements_section(requirements),
+            audience_section=_audience_section(audience),
             dimension_name=dim.get("name", ""),
             dimension_focus=dim.get("focus", ""),
-            dimension_questions=str(dim.get("questions", [])),
             materials_section=_research_materials_section(materials),
             search_section=_search_results_section(search_results),
+            audience_value_hint=audience_value_hint,
         )
         result = await model.ainvoke([HumanMessage(content=prompt)])
         return result.content
@@ -146,10 +159,14 @@ async def _step3_synthesize(
     materials: str,
     dimension_research: str,
     model,
+    audience: str = "",
+    objective: str = "",
 ) -> str:
     """Synthesize all dimension research into final research_notes.md."""
     prompt = RESEARCH_SYNTHESIZE_PROMPT.format(
         topic=topic,
+        audience_section=_audience_section(audience),
+        objective_section=_objective_section(objective),
         dimension_research=dimension_research,
         materials_section=_research_materials_section(materials),
     )
@@ -158,12 +175,14 @@ async def _step3_synthesize(
 
 
 @tool
-async def research_topic(topic: str, requirements: str = "") -> str:
+async def research_topic(topic: str, requirements: str = "", audience: str = "", objective: str = "") -> str:
     """深度研究演示文稿主题，生成结构化研究笔记。适用于复杂或专业领域的主题。
 
     Args:
         topic: 演示文稿主题。
-        requirements: 用户补充需求（受众、目的、关注点等）。
+        requirements: 用户补充需求（关注点、特殊要求等）。
+        audience: 目标受众（如：企业高管、技术团队、客户等）。
+        objective: 演示目标（persuade/report/educate/inspire）。
     """
     session_dir = get_session_dir()
     model = get_model()
@@ -172,11 +191,11 @@ async def research_topic(topic: str, requirements: str = "") -> str:
     materials = await _read_materials(session_dir)
 
     # Step 1: analyze topic → dimensions
-    dimensions = await _step1_analyze(topic, requirements, materials, model)
+    dimensions = await _step1_analyze(topic, requirements, materials, audience, objective, model)
 
     # Step 2: research each dimension concurrently
     tasks = [
-        _step2_research_dimension(sem, topic, requirements, materials, dim, model)
+        _step2_research_dimension(sem, topic, requirements, materials, dim, model, audience)
         for dim in dimensions
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -197,7 +216,7 @@ async def research_topic(topic: str, requirements: str = "") -> str:
     dimension_research = "\n\n".join(dimension_research_parts)
 
     # Step 3: synthesize into final research_notes.md
-    research_notes = await _step3_synthesize(topic, materials, dimension_research, model)
+    research_notes = await _step3_synthesize(topic, materials, dimension_research, model, audience, objective)
 
     # Persist
     notes_path = session_dir / "research_notes.md"

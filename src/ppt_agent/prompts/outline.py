@@ -1,13 +1,43 @@
+from datetime import datetime
+
+
+def _time_hint() -> str:
+    now = datetime.now()
+    quarter = (now.month - 1) // 3 + 1
+    return f"当前时间：{now:%Y-%m-%d}（{now.year}年Q{quarter}）。如果涉及「最新」「今年」「当前」等时间表述，以此为基准。"
+
+
 OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 
 ## 用户需求
 {requirements}
-
+{audience_section}
+{objective_section}
+{time_section}
 {research_section}
 {materials_section}
-## 第一步：规划叙事主线
+
+## 第一步：判断主题类型 + 规划叙事
 
 在输出 JSON 之前，先在脑中完成以下规划（不要输出思考过程）：
+
+### 1.1 判断主题类型
+
+根据需求内容判断主题类型：
+- **商业分析型**（行业报告、市场分析、竞品对比）
+- **技术方案型**（技术选型、架构设计、实施路径）
+- **说服提案型**（融资路演、项目提案、变革推动）
+- **知识教育型**（培训课程、知识分享、学术汇报）
+
+### 1.2 选择参考结构
+
+根据主题类型选择合适的默认结构（可灵活调整）：
+- 商业分析型：cover → toc → 行业现状 → 核心发现 → 挑战分析 → 趋势展望 → ending
+- 技术方案型：cover → toc → 需求背景 → 方案概览 → 方案对比 → 实施路径 → ending
+- 说服提案型：cover → toc → 现状痛点 → 影响分析 → 解决方案 → 行动计划 → ending
+- 知识教育型：cover → toc → 核心概念 → 发展历程 → 典型应用 → 前沿趋势 → ending
+
+### 1.3 规划叙事主线
 
 1. **确定核心主张**：观众看完所有幻灯片后，应该被说服/记住的**一个**核心结论是什么？
 2. **选择叙事框架**：
@@ -38,28 +68,44 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 - ❌ "企业自动化实践"（只是话题标签，不是结论）
 - 保持简短有力，避免超过 20 字
 
+### section 页使用规则
+- 用 `layout: "section"` 标记叙事阶段的**转折点**（如从 situation 进入 complication）
+- section 页不包含 supporting_points，只用 headline 概括接下来的叙事阶段
+- 典型用法：在 cover → toc 之后，用 section 页分隔各叙事阶段
+- 不要过度使用：5-8 页的简单演示可能只需要 0-1 个 section 页
+
+### body_text 使用规则
+- 用 `body_text` 提供 1-2 句补充说明，帮助理解 headline 的背景或语境
+- 不要把 supporting_points 的内容放到 body_text 中
+- cover/toc/section/ending 页不需要 body_text
+
 ### 论据使用原则
 - 每页聚焦一个核心论点，supporting_points 数量根据内容需要决定
 - evidence_type：data（数据）、case_study（案例）、quote（引用）、analysis（分析）、analogy（类比）
 - 有力的证据一个就够了，不要凑数
+- 如果上方有研究笔记，优先使用标注为 [已验证] 或 [行业共识] 的事实
+- 避免使用标注为 [待验证] 的信息作为核心论据
+- 不要编造具体数据。如果研究笔记中没有确切数字，用定性描述代替
 
 ### 视觉元素（visual_hint）
 当内容适合用特定视觉形式呈现时，在 `visual_hint` 字段标注：
-- `table`：数据对比表格（如：多维度指标对比）
-- `comparison`：左右或上下对比（如：方案 A vs 方案 B、变革前后）
-- `timeline`：时间线（如：发展历程、里程碑）
-- `process`：流程/步骤（如：实施路径、工作流）
-- `chart`：图表（如：趋势变化、占比分布）
-- `quote_highlight`：金句/引用突出展示（如：核心观点、名言）
+- `table`：多维度数据对比（3+ 个对比项）
+- `comparison`：左右/上下对比（如方案 A vs B、变革前后）
+- `timeline`：时间线（发展历程、里程碑，3+ 个时间节点）
+- `process`：流程/步骤（实施路径、工作流，3-5 个步骤）
+- `chart`：数据趋势、占比分布
+- `quote_highlight`：金句/核心观点突出展示
 - 留空：默认列表布局
 
 只在内容确实需要时使用，不必每页都指定。
 
 ## 第三步：自查（不要输出，在脑中完成）
 
-1. 逐页检查 headline：每个 content/section 页的 headline 是否为**完整陈述句**（不是"市场分析"这种话题标签）？如果有话题标签式的 headline，改为结论句。
-2. 页面间逻辑递进：从第一页到最后一页，读者能否被逐步引导到核心结论？如果某页与前页没有递进关系，调整或合并。
-3. visual_hint 使用：是否有内容天然适合表格、对比、时间线等视觉形式但 visual_hint 留空了？
+1. **headline 检查**：每个 content/section 页的 headline 是否为**完整陈述句**（不是"市场分析"这种话题标签）？如果有话题标签式的 headline，改为结论句。
+2. **递进检查**：从第一页到最后一页，读者能否被逐步引导到核心结论？如果某页与前页没有递进关系，调整或合并。
+3. **论据检查**：有没有 content 页的 supporting_points 是空洞的泛泛而谈？如果有，补充具体证据或删除。
+4. **visual_hint 检查**：是否有内容天然适合表格、对比、时间线等视觉形式但 visual_hint 留空了？反过来，是否有没有数据支撑却标了 chart 的页面？
+5. **section 页检查**：section 页的 headline 是否清楚标记了叙事转折？是否过多或过少？
 
 确认无误后再输出 JSON。
 
@@ -94,9 +140,16 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
     }},
     {{
       "page": 3,
+      "layout": "section",
+      "headline": "叙事阶段转折的结论句",
+      "section": "situation",
+      "supporting_points": []
+    }},
+    {{
+      "page": 4,
       "layout": "content",
       "headline": "本页核心结论（完整陈述句）",
-      "body_text": "补充说明（1-2句）",
+      "body_text": "补充说明（1-2句，可选）",
       "supporting_points": [
         {{
           "message": "支撑结论的论点",
@@ -112,6 +165,48 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
   ]
 }}
 ```
+
+## 示例（节选）
+
+主题：「远程办公如何重塑企业管理」
+
+```json
+{{
+  "title": "远程办公已将管理重心从工时监控转向成果交付",
+  "audience": "企业中层管理者",
+  "objective": "persuade",
+  "narrative": {{
+    "framework": "scqa",
+    "situation": "远程办公从应急措施变为长期常态",
+    "complication": "传统基于工时的管理模式在远程环境下失效",
+    "core_question": "如何在远程环境下保持团队高效运作？",
+    "core_answer": "转向成果导向的管理模式，建立信任文化和异步协作机制"
+  }},
+  "slides": [
+    {{"page": 1, "layout": "cover", "headline": "远程时代，管理从「看得见」转向「信得过」", "supporting_points": []}},
+    {{"page": 2, "layout": "toc", "headline": "从现状到方案：远程管理模式的四个关键转变", "supporting_points": []}},
+    {{"page": 3, "layout": "section", "headline": "远程办公已成为不可逆转的工作方式", "section": "situation", "supporting_points": []}},
+    {{
+      "page": 4, "layout": "content", "headline": "全球 74% 的企业已采用混合办公模式",
+      "supporting_points": [{{"message": "混合办公渗透率持续攀升", "evidence": [{{"claim": "麦肯锡 2024 报告：74% 受访企业采用混合模式", "evidence_type": "data"}}]}}],
+      "section": "situation", "visual_hint": "chart"
+    }},
+    {{"page": 5, "layout": "section", "headline": "传统管理模式在远程环境下全面失效", "section": "complication", "supporting_points": []}},
+    {{
+      "page": 6, "layout": "content", "headline": "工时监控型管理导致远程员工敬业度下降 35%",
+      "body_text": "「看得见才算在工作」的思维与远程环境根本冲突",
+      "supporting_points": [{{"message": "微观管理适得其反", "evidence": [{{"claim": "Gallup 调查：被密切监控的远程员工敬业度显著更低", "evidence_type": "data"}}]}}],
+      "section": "complication", "visual_hint": "comparison"
+    }}
+  ]
+}}
+```
+
+注意示例中的关键模式：
+- cover 的 headline 就是核心主张的浓缩
+- section 页不定期出现，仅在叙事转折处使用
+- content 页的 headline 是具体结论句，不是话题标签
+- evidence 提供具体来源，不是空洞描述
 
 - cover 和 ending 页不需要 supporting_points
 - toc 页 headline 概括演示主线
@@ -136,3 +231,22 @@ def _research_section(research: str = "") -> str:
         return ""
     preview = research[:8000] if len(research) > 8000 else research
     return f"## 研究笔记\n\n以下是针对该主题的深度研究结果，请据此构建有深度的大纲：\n\n{preview}\n\n"
+
+
+def _audience_section(audience: str = "") -> str:
+    if not audience or not audience.strip():
+        return ""
+    return f"\n**目标受众**：{audience}\n"
+
+
+def _objective_section(objective: str = "") -> str:
+    if not objective or not objective.strip():
+        return ""
+    obj_labels = {
+        "persuade": "说服（推动行动或决策）",
+        "report": "汇报（报告现状或成果）",
+        "educate": "教育（传授知识或技能）",
+        "inspire": "激励（激发情感或愿景）",
+    }
+    label = obj_labels.get(objective, objective)
+    return f"**演示目标**：{label}\n"

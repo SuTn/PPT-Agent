@@ -9,7 +9,14 @@ from pydantic import ValidationError
 from ppt_agent.agent.state import Outline, SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
-from ppt_agent.prompts.outline import OUTLINE_PROMPT, _materials_section, _research_section
+from ppt_agent.prompts.outline import (
+    OUTLINE_PROMPT,
+    _audience_section,
+    _materials_section,
+    _objective_section,
+    _research_section,
+    _time_hint,
+)
 
 
 def _extract_json(text: str) -> str:
@@ -70,16 +77,18 @@ def _state_path() -> Path:
 
 
 @tool
-async def generate_outline(requirements: str, page_count: int = 0, materials: str = "") -> str:
+async def generate_outline(requirements: str, page_count: int = 0, materials: str = "", audience: str = "", objective: str = "") -> str:
     """根据用户需求和研究笔记生成 PPT 大纲。
 
     在用户确认了演示主题和需求后调用此工具。生成结构化的大纲 JSON，
     包含叙事框架、Action Title、支撑论据和证据。
 
     Args:
-        requirements: 用户的演示需求描述，包含主题、受众、关键内容等。
+        requirements: 用户的演示需求描述，包含主题、关键内容等。
         page_count: 期望的幻灯片页数。0 表示根据内容复杂度自行决定（默认）。
         materials: 用户上传的参考材料内容（Markdown 格式）。如果为空，自动从会话目录的 materials.md 读取。
+        audience: 目标受众（如：企业高管、技术团队、客户等）。
+        objective: 演示目标（persuade/report/educate/inspire）。
     """
     session_dir = get_session_dir()
 
@@ -103,6 +112,9 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
 
     base_prompt = OUTLINE_PROMPT.format(
         requirements=requirements,
+        audience_section=_audience_section(audience),
+        objective_section=_objective_section(objective),
+        time_section=_time_hint(),
         page_instruction=page_instruction,
         materials_section=_materials_section(materials),
         research_section=_research_section(research),
