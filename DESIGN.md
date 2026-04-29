@@ -10,9 +10,9 @@
 ### 1.1 核心流程
 
 ```
-用户对话 → [需求讨论] → [深度研究] → [大纲生成] → [风格选择] → [幻灯片生成] → [导出 PPTX]
-               tool        async tool      tool          tool        async tool         async tool
-                            (可选)
+用户对话 → [需求讨论] → [深度研究] → [大纲生成] → [风格选择] → [幻灯片生成] → [实时预览] → [手动导出 PPTX]
+               tool        async tool      tool          tool        async tool      (iframe)    POST /export
+                            (可选)                                   (逐张流式)
 ```
 
 用户可随时对话、修改、补充，整个流程是**状态机**而非线性管道。研究阶段由 agent 根据主题复杂度自主决定是否调用。
@@ -26,12 +26,13 @@
 | **深度研究** | `research_topic` tool | 主题、requirements | research_notes.md | 3+ 次（分析+并发维度研究+综合） |
 | **大纲生成** | `generate_outline` tool | 主题、materials、research_notes | outline.json（Pydantic 校验） | 1 次（含重试） |
 | **风格选择** | `select_template` tool | 模板名 | style_spec.json | 0 次 |
-| **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件 | N 次（并发） |
-| **导出** | `export_pptx` tool | slides/ 目录 | .pptx 文件 | 0 次 |
+| **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件（逐张流式推送） | N 次（并发） |
+| **实时预览** | SSE `slide_generated` 事件 | HTML 文件路径 | 前端 iframe 渲染 | 0 次 |
+| **导出** | `POST /export` API | slides/ 目录 | .pptx 文件 | 0 次 |
 
 ### 1.3 上下文控制
 
-主 Agent 上下文中**不包含**任何 HTML 内容。所有 tool 的 return 值仅为文件路径或简短确认信息。HTML 通过 `asyncio.gather()` 并发写入文件，不经过消息历史。
+主 Agent 上下文中**不包含**任何 HTML 内容。所有 tool 的 return 值仅为文件路径或简短确认信息。HTML 通过 `asyncio.as_completed()` 并发写入文件，每完成一张通过 `asyncio.Queue` 推送 `slide_generated` SSE 事件，不经过消息历史。
 
 ### 1.4 并发控制
 
@@ -115,8 +116,8 @@ agent = create_deep_agent(
 | `generate_outline` | 主题确认后（研究后如有） | 大纲 JSON（NarrativeFramework + SupportingPoint 结构） | 保存 outline.json，更新 session.json |
 | `select_template` | 大纲确认后 | 简短确认 | 保存 style_spec.json，更新 session.json |
 | `list_templates` | 用户主动要求 | 模板列表 | 无 |
-| `generate_slides` | 模板确认后 | 文件路径列表 + 失败警告 | 并发 LLM 调用，保存 HTML，更新 session.json |
-| `export_pptx` | 幻灯片生成后 | PPTX 路径 + 失败警告 | 并发截图，更新 session.json |
+| `generate_slides` | 模板确认后 | 文件路径列表 + 失败警告 | 逐张并发 LLM 调用，每完成一张推送 slide_generated 事件，保存 HTML |
+| `export_pptx` | 禁止 AI 调用 | PPTX 路径 + 失败警告 | 仅用户手动触发（POST /export），并发截图 |
 
 ### 3.3 配置
 
@@ -330,6 +331,7 @@ ppt-agent/
 ├── src/ppt_agent/
 │   ├── main.py                 # CLI 入口（会话隔离 + contextvar）
 │   ├── config.py               # Pydantic Settings + 并发配置 + 会话目录 contextvar
+│   ├── progress.py             # 逐张幻灯片进度队列（模块级 dict，session_id → asyncio.Queue）
 │   ├── llm.py                  # get_model() 工厂函数
 │   │
 │   ├── agent/
@@ -342,8 +344,8 @@ ppt-agent/
 │   │   ├── research.py         # research_topic（3 步 LLM 分析+并发维度研究+综合，可选联网搜索）
 │   │   ├── outline.py          # generate_outline（Pydantic 校验 + 重试 + materials + research_notes）
 │   │   ├── template.py         # select_template / list_templates
-│   │   ├── slide_gen.py        # generate_slides（并发 LLM 调用 + 容错）
-│   │   ├── export.py           # export_pptx（并发截图 + 容错）
+│   │   ├── slide_gen.py        # generate_slides（as_completed 逐张生成 + 进度队列推送 + 容错）
+│   │   ├── export.py           # do_export（核心导出逻辑）+ export_pptx tool（手动触发）
 │   │   └── upload.py           # upload_and_parse（markitdown 文档解析）
 │   │
 │   ├── search.py               # SearchProvider 协议 + Tavily 实现（研究阶段联网搜索）
@@ -370,9 +372,9 @@ ppt-agent/
 │       ├── app.py               # FastAPI 应用 + CORS + 中间件
 │       ├── server.py            # uvicorn 启动入口
 │       ├── deps.py              # 依赖注入（agent 单例）
-│       ├── streaming.py         # SSE 流式生成器
+│       ├── streaming.py         # SSE 流式生成器（后台 agent 任务 + 进度队列并发读取）
 │       └── routes/
-│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载 + 幻灯片预览 + 研究笔记查询
+│           ├── sessions.py      # 会话 CRUD + 消息 + 上传 + 下载 + 导出 + 单张重试 + 幻灯片预览（CSP） + 研究笔记查询
 │           ├── templates.py     # 模板查询
 │           └── upload.py        # 文件上传处理
 │
@@ -404,7 +406,8 @@ web/
 │   │   ├── ResearchPreview.vue  # 研究笔记折叠展示卡片
 │   │   ├── TemplateSelector.vue # 模板选择器
 │   │   ├── TemplateCard.vue     # 模板预览卡片（渐变色条）
-│   │   └── SlidePreview.vue     # 幻灯片缩略图预览
+│   │   ├── TemplateLibrary.vue  # 模板库模态框（Teleport，侧边栏入口）
+│   │   └── SlidePreview.vue     # 幻灯片预览（iframe + CSS transform 缩略图 + 单张重试）
 │   └── styles/
 │       └── main.css             # CSS Variables 设计系统
 └── package.json
@@ -421,6 +424,11 @@ web/
 - [x] 7 个 async Tools
 - [x] 深度研究（research_topic：3 步 LLM 分析→并发维度研究→综合，Agent 自主决定是否调用）
 - [x] 并发幻灯片生成（Semaphore 控制并发数 + return_exceptions 容错）
+- [x] 逐张流式渲染（asyncio.as_completed + asyncio.Queue + SSE slide_generated 事件）
+- [x] iframe 实时预览（CSS transform 缩放缩略图 + sandbox + CSP 安全头）
+- [x] 手动导出（Agent 不自动调用 export_pptx，用户界面点击导出按钮）
+- [x] 单张幻灯片重试（备份/恢复机制，cache busting 刷新 iframe）
+- [x] 模板库（侧边栏入口，Teleport 模态框，渐变色条 + 调色板预览）
 - [x] 并发 PNG 渲染（浏览器复用 + Semaphore + 容错）
 - [x] 5 个预设模板
 - [x] Playwright 2x 截图 + python-pptx 导出
@@ -440,7 +448,7 @@ web/
 - [x] 参考材料融入大纲（materials.md 自动读取 + materials 参数传递）
 - [x] 研究笔记融入大纲（research_notes.md 自动读取 + research section 注入）
 - [x] 容错机制（单页生成失败不影响整体、HTML 有效性校验、PPTX 嵌入异常跳过、GraphInterrupt 恢复）
-- [x] 35 个单元测试
+- [x] 56 个单元测试
 - [x] Debug 输出（TOOL 调用/结果追踪）
 
 ### 8.2 API 服务器
@@ -470,7 +478,9 @@ web/
 - [x] 研究笔记折叠展示（ResearchPreview：marked + DOMPurify 渲染，可折叠）
 - [x] 浏览器标签栏通知（Notification API + document.title 闪烁，tool 完成时提醒用户）
 - [x] 模板选择卡片（TemplateCard：渐变色条预览 + TemplateSelector 水平滚动）
-- [x] 幻灯片缩略图预览（SlidePreview：可折叠面板 + 点击放大 + 模态框）
+- [x] 幻灯片 iframe 实时预览（SlidePreview：逐张流式渲染 + CSS transform 缩略图 + 点击放大 + 单张重试）
+- [x] 模板库（TemplateLibrary：侧边栏入口 + Teleport 模态框 + 渐变色条 + 调色板预览）
+- [x] 手动导出按钮（slides_done 步骤显示"导出 PPTX"，exported 步骤显示"下载 PPTX"）
 - [x] 工具调用状态卡片（进行中旋转图标 + 完成勾选图标 + 描述文本）
 - [x] 空状态欢迎屏（品牌图标 + 推荐提示词 chips）
 - [x] 响应式设计
@@ -591,7 +601,27 @@ web/
 **选择**：预定义 5 种布局的 HTML 骨架（cover/toc/content/section/ending），LLM 只生成内容区域 HTML，`render_skeleton()` 合并骨架 + style_spec + 内容。
 **原因**：每页由 LLM 独立生成，完全自由的输出导致页码位置不一致、headline 样式不一。骨架固定 header（headline）、footer（右下角页码）、CSS reset，确保跨页一致性。模板可覆盖 `skeletons/{layout}.html` 实现自定义布局。
 
-### 9.22 PlaywrightSearchProvider 浏览器搜索
+### 9.22 逐张流式渲染（asyncio.Queue + SSE）
+
+**选择**：`generate_slides` 使用 `asyncio.as_completed()` 替代 `asyncio.gather()`，每完成一张幻灯片通过模块级 `dict[str, asyncio.Queue]`（`progress.py`）推送 `slide_generated` 事件。SSE generator 在后台运行 `ainvoke()`，主循环 `asyncio.wait_for(queue.get())` 实时读取进度事件。
+**原因**：`ainvoke()` 阻塞到所有工具完成才返回，无法中途推送事件。后台任务 + Queue 方案在保持 agent 调用方式不变的同时实现逐张推送。使用模块级 dict 而非 ContextVar 避免在 LangGraph 内部 task 创建时 context 丢失。
+
+### 9.23 手动导出取代自动导出
+
+**选择**：Agent prompt 改为"禁止调用 export_pptx"，新增 `POST /sessions/{id}/export` API 端点直接调用 `do_export()`。前端在 `slides_done` 步骤显示"导出 PPTX"按钮。
+**原因**：用户在导出前无法审查幻灯片效果，导出后发现问题只能重新生成。手动导出让用户先预览确认，不满意可修改或重试单张后再导出。提取 `do_export()` 为独立函数供 API 和 tool 共用。
+
+### 9.24 iframe 预览安全（CSP + sandbox）
+
+**选择**：幻灯片 HTML 通过 `<iframe>` 直接渲染预览，使用 `sandbox=""`（禁止脚本）+ CSP `default-src 'none'; style-src 'unsafe-inline'; img-src data:;` 安全头。
+**原因**：幻灯片 HTML 由 LLM 生成，可能包含恶意 JavaScript。`sandbox=""` 阻止所有脚本执行和同源访问，CSP 进一步限制资源加载。缩略图使用 CSS `transform: scale(0.109)` 将 1280×720 iframe 缩放为 140px 宽。
+
+### 9.25 单张重试（备份/恢复）
+
+**选择**：`POST /sessions/{id}/slides/{page}/retry` 端点，重试前将原 HTML 备份为 `.html.bak`，成功后删除备份，失败则恢复。
+**原因**：重试可能失败（LLM 错误、无效 HTML），无备份会导致原幻灯片丢失。前端通过 `:key` 包含版本号强制 Vue 销毁重建 iframe，配合 `?v=N` cache bust 确保加载新内容。
+
+### 9.26 PlaywrightSearchProvider 浏览器搜索
 
 **选择**：基于 Playwright async API 实现 `PlaywrightSearchProvider`，通过操作 Bing 搜索引擎获取结果并抓取页面内容。
 **原因**：Tavily 等 API 需要付费密钥，且无法控制搜索源。浏览器搜索零成本，可访问任何网站，支持中文搜索。使用 `SearchProvider` 协议保持架构一致，`get_search_provider()` 根据 `PPT_AGENT_SEARCH_PROVIDER` 配置返回对应实现。

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import type { Message, SSEEvent } from "../api/types";
+import type { Message, SSEEvent, SlideInfo } from "../api/types";
 import client from "../api/client";
 
 const storeMap = new Map<string, ReturnType<typeof createSessionStore>>();
@@ -29,6 +29,7 @@ function createSessionStore(sessionId: string) {
     const pipelineStep = ref("idle");
     const outline = ref<any>(null);
     const researchNotes = ref<string>("");
+    const slides = ref<SlideInfo[]>([]);
 
     async function loadHistory() {
       if (loaded.value) return;
@@ -59,6 +60,14 @@ function createSessionStore(sessionId: string) {
               const { data: rd } = await client.get(`/sessions/${sessionId}/research`);
               if (rd?.content) researchNotes.value = rd.content;
             } catch { /* no research notes */ }
+          }
+          // Restore slides from API if slides are done
+          const slideSteps = ["slides_done", "exported"];
+          if (slideSteps.includes(pipelineStep.value)) {
+            try {
+              const { data: sd } = await client.get(`/sessions/${sessionId}/slides`);
+              if (sd?.slides) slides.value = sd.slides;
+            } catch { /* no slides */ }
           }
         }
       } catch {
@@ -153,6 +162,23 @@ function createSessionStore(sessionId: string) {
                 notifyUser(toolName);
               } else if (event.type === "error") {
                 error.value = event.message ?? "Unknown error";
+              } else if (event.type === "slide_generated") {
+                const slide: SlideInfo = {
+                  page: event.page!,
+                  layout: event.layout!,
+                  filename: event.filename,
+                };
+                // Insert sorted by page
+                const idx = slides.value.findIndex(s => s.page === slide.page);
+                if (idx >= 0) {
+                  slides.value[idx] = slide;
+                } else {
+                  slides.value.push(slide);
+                  slides.value.sort((a, b) => a.page - b.page);
+                }
+              } else if (event.type === "slide_error") {
+                // Slide error — no slide to add, just log
+                console.warn(`Slide ${event.page} error: ${event.message}`);
               }
             } catch {
               // skip malformed JSON
@@ -232,7 +258,7 @@ function createSessionStore(sessionId: string) {
     // Stop flashing when user focuses the tab
     window.addEventListener("focus", stopTitleFlash);
 
-    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, sendMessage, addSystemNotice, loadHistory };
+    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, slides, sendMessage, addSystemNotice, loadHistory };
   })();
 }
 

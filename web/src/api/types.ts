@@ -13,11 +13,22 @@ export interface Template {
 }
 
 export interface SSEEvent {
-  type: "content" | "tool_call" | "tool_result" | "error" | "done";
+  type: "content" | "tool_call" | "tool_result" | "error" | "done" | "slide_generated" | "slide_error";
   content?: string;
   name?: string;
   args?: Record<string, unknown>;
   message?: string;
+  page?: number;
+  layout?: string;
+  filename?: string;
+  total?: number;
+}
+
+export interface SlideInfo {
+  page: number;
+  layout: string;
+  filename?: string;
+  has_png?: boolean;
 }
 
 export interface Message {

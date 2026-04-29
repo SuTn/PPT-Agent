@@ -17,16 +17,29 @@
     <div v-if="expanded" class="slide-grid">
       <div v-for="slide in slides" :key="slide.page" class="slide-thumb" @click="previewSlide = slide">
         <div class="thumb-wrapper">
-          <img
-            v-if="slide.has_png"
-            :src="`/api/v1/sessions/${sessionId}/slides/slide_${String(slide.page).padStart(2, '0')}_${slide.layout}.png`"
-            :alt="`Slide ${slide.page}`"
+          <iframe
+            v-if="slide.filename"
+            :key="`thumb-${slide.page}-${slideVersions[slide.page] ?? 0}`"
+            :src="slideSrc(slide)"
+            class="thumb-iframe"
+            sandbox=""
             loading="lazy"
           />
           <div v-else class="thumb-placeholder">
             <span>{{ slide.page }}</span>
           </div>
           <div class="thumb-page">{{ slide.page }}</div>
+          <button
+            class="btn-retry"
+            :disabled="retryingPage === slide.page"
+            @click.stop="retrySlide(slide.page)"
+            title="重新生成"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M1 6a5 5 0 1 1 1 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M1 9V6h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -37,52 +50,56 @@
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
         </button>
-        <img
-          v-if="previewSlide.has_png"
-          :src="`/api/v1/sessions/${sessionId}/slides/slide_${String(previewSlide.page).padStart(2, '0')}_${previewSlide.layout}.png`"
-          :alt="`Slide ${previewSlide.page}`"
+        <iframe
+          v-if="previewSlide.filename"
+          :key="`preview-${previewSlide.page}-${slideVersions[previewSlide.page] ?? 0}`"
+          :src="slideSrc(previewSlide)"
+          class="preview-iframe"
+          sandbox="allow-same-origin"
         />
+        <div v-else class="preview-placeholder">
+          <span>第 {{ previewSlide.page }} 页 — {{ previewSlide.layout }}</span>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from "vue";
+import { ref, reactive } from "vue";
+import type { SlideInfo } from "../api/types";
 import client from "../api/client";
 
 const props = defineProps<{
   sessionId: string;
-  step: string;
+  slides: SlideInfo[];
 }>();
 
-const slides = ref<any[]>([]);
-const expanded = ref(true);
-const previewSlide = ref<any>(null);
+const emit = defineEmits<{
+  (e: "retry", page: number): void;
+}>();
 
-async function fetchSlides() {
-  try {
-    const { data } = await client.get(`/sessions/${props.sessionId}/slides`);
-    slides.value = data.slides ?? [];
-    if (slides.value.length > 0) {
-      expanded.value = true;
-    }
-  } catch {
-    // ignore
-  }
+const expanded = ref(true);
+const previewSlide = ref<SlideInfo | null>(null);
+const retryingPage = ref<number | null>(null);
+const slideVersions = reactive<Record<number, number>>({});
+
+function slideSrc(slide: SlideInfo): string {
+  const v = slideVersions[slide.page] ?? 0;
+  const sep = v > 0 ? `?v=${v}` : "";
+  return `/api/v1/sessions/${props.sessionId}/slides/${slide.filename}${sep}`;
 }
 
-watch(() => props.step, (val) => {
-  if (val === "slides_done" || val === "exported") {
-    fetchSlides();
+async function retrySlide(page: number) {
+  retryingPage.value = page;
+  try {
+    await client.post(`/sessions/${props.sessionId}/slides/${page}/retry`);
+    slideVersions[page] = (slideVersions[page] ?? 0) + 1;
+    emit("retry", page);
+  } finally {
+    retryingPage.value = null;
   }
-});
-
-onMounted(() => {
-  if (props.step === "slides_done" || props.step === "exported") {
-    fetchSlides();
-  }
-});
+}
 </script>
 
 <style scoped>
@@ -142,11 +159,17 @@ onMounted(() => {
 
 .thumb-wrapper {
   width: 140px;
+  aspect-ratio: 16/9;
   position: relative;
+  overflow: hidden;
 }
-.thumb-wrapper img {
-  width: 100%;
-  display: block;
+.thumb-iframe {
+  width: 1280px;
+  height: 720px;
+  transform: scale(0.109375);
+  transform-origin: top left;
+  border: none;
+  pointer-events: none;
 }
 
 .thumb-placeholder {
@@ -171,6 +194,36 @@ onMounted(() => {
   border-radius: 3px;
 }
 
+.btn-retry {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.slide-thumb:hover .btn-retry {
+  opacity: 1;
+}
+.btn-retry:hover:not(:disabled) {
+  background: var(--primary);
+}
+.btn-retry:disabled {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: not-allowed;
+}
+
 .preview-overlay {
   position: fixed;
   inset: 0;
@@ -186,9 +239,23 @@ onMounted(() => {
   max-width: 90vw;
   max-height: 90vh;
 }
-.preview-modal img {
-  max-width: 100%;
+.preview-iframe {
+  width: 1280px;
+  height: 720px;
+  max-width: 90vw;
   max-height: 85vh;
+  border: none;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.preview-placeholder {
+  width: 640px;
+  height: 360px;
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
 }

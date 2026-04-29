@@ -8,6 +8,7 @@ from langchain_core.tools import tool
 from ppt_agent.agent.state import SessionState, PipelineStep, sync_session_index
 from ppt_agent.config import get_session_dir, settings
 from ppt_agent.llm import get_model
+from ppt_agent.progress import get_queue
 from ppt_agent.prompts.slide import SLIDE_PROMPT
 from ppt_agent.templates.registry import load_skeleton, render_skeleton
 
@@ -73,6 +74,19 @@ async def _generate_one_slide(
         return slide_info, full_html
 
 
+async def _safe_generate_one(
+    slide, sem, model, total, style_spec, template_key
+):
+    """Wrapper that catches exceptions from _generate_one_slide."""
+    try:
+        info, html = await _generate_one_slide(
+            sem, model, slide, total, style_spec, template_key
+        )
+        return info, html, None
+    except Exception as e:
+        return slide, None, str(e)
+
+
 @tool
 async def generate_slides() -> str:
     """根据大纲和风格规范并发生成所有 HTML 幻灯片。
@@ -105,27 +119,55 @@ async def generate_slides() -> str:
     slides_dir = session_dir / "slides"
     slides_dir.mkdir(parents=True, exist_ok=True)
 
+    session_id = session_dir.name
+    queue = get_queue(session_id)
+
     tasks = [
-        _generate_one_slide(sem, model, s, total, style_spec, template_key)
+        _safe_generate_one(s, sem, model, total, style_spec, template_key)
         for s in slides
     ]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
 
     generated = []
     failed = []
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            failed.append(f"第 {slides[i]['page']} 页: {result}")
+    for coro in asyncio.as_completed(tasks):
+        slide_info, html_content, error = await coro
+
+        if error:
+            page_num = slide_info.get("page", "?")
+            failed.append(f"第 {page_num} 页: {error}")
+            if queue:
+                await queue.put(
+                    {"type": "slide_error", "page": page_num, "error": error}
+                )
             continue
-        slide_info, html_content = result
+
         if not html_content or not _is_valid_html(html_content):
             failed.append(f"第 {slide_info['page']} 页: 生成的 HTML 内容无效")
+            if queue:
+                await queue.put(
+                    {
+                        "type": "slide_error",
+                        "page": slide_info["page"],
+                        "error": "HTML 无效",
+                    }
+                )
             continue
+
         filename = f"slide_{slide_info['page']:02d}_{slide_info['layout']}.html"
         filepath = slides_dir / filename
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(html_content)
+        filepath.write_text(html_content, encoding="utf-8")
         generated.append(str(filepath))
+
+        if queue:
+            await queue.put(
+                {
+                    "type": "slide_generated",
+                    "page": slide_info["page"],
+                    "layout": slide_info["layout"],
+                    "filename": filename,
+                    "total": total,
+                }
+            )
 
     state = SessionState.load(session_dir / "session.json")
     state.step = PipelineStep.SLIDES_DONE

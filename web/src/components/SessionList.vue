@@ -5,9 +5,19 @@
         <div class="brand-icon">P</div>
         <h2>PPT-Agent</h2>
       </div>
-      <button class="btn-new" @click="handleCreate" title="新建会话">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-      </button>
+      <div class="header-actions">
+        <button class="btn-templates" @click="showLibrary = true" title="模板库">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+            <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+        </button>
+        <button class="btn-new" @click="handleCreate" title="新建会话">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
     </div>
     <ul>
       <li
@@ -26,14 +36,18 @@
         </button>
       </li>
     </ul>
+    <TemplateLibrary :visible="showLibrary" @close="showLibrary = false" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
 import { useSessionsStore } from "../stores/sessions";
 import type { Session } from "../api/types";
+import TemplateLibrary from "./TemplateLibrary.vue";
 
 const sessionsStore = useSessionsStore();
+const showLibrary = ref(false);
 
 const STEP_LABELS: Record<string, string> = {
   idle: "未开始",
@@ -76,6 +90,27 @@ async function handleDelete(id: string) {
   align-items: center;
   padding: var(--space-lg) var(--space-xl);
   border-bottom: 1px solid var(--border);
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.btn-templates {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-templates:hover {
+  color: var(--text);
+  background: var(--border-light);
 }
 
 .brand {

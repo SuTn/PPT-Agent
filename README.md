@@ -66,10 +66,10 @@ npm run dev
 ## 工作流程
 
 ```
-对话确认主题 → [可选] 上传文件 → [可选] 深度研究 → 生成大纲 → 选择模板 → 并发生成幻灯片 → 导出 PPTX
+对话确认主题 → [可选] 上传文件 → [可选] 深度研究 → 生成大纲 → 选择模板 → 逐张并发生成幻灯片 → 实时预览 → 手动导出 PPTX
 ```
 
-每步完成后会展示结果，用户确认或提出修改后再继续。页数默认由 LLM 根据内容复杂度自适应决定。
+每步完成后会展示结果，用户确认或提出修改后再继续。页数默认由 LLM 根据内容复杂度自适应决定。幻灯片生成过程中逐张实时预览（iframe 渲染），用户确认满意后手动点击导出。支持单张幻灯片重新生成。
 
 ## CLI 命令
 
@@ -141,12 +141,14 @@ uv run pytest tests/ -v
 | `/api/v1/sessions/{id}` | GET | 获取会话详情（含历史消息） |
 | `/api/v1/sessions/{id}` | DELETE | 删除会话 |
 | `/api/v1/sessions/{id}/messages` | POST | 发送消息（非流式） |
-| `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话 |
+| `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话（含逐张 slide_generated 事件） |
 | `/api/v1/sessions/{id}/upload` | POST | 上传文件 |
+| `/api/v1/sessions/{id}/export` | POST | 手动导出 PPTX（HTML→PNG→PPTX） |
 | `/api/v1/sessions/{id}/download` | GET | 下载 PPTX |
 | `/api/v1/sessions/{id}/research` | GET | 获取研究笔记 |
 | `/api/v1/sessions/{id}/slides` | GET | 获取幻灯片文件列表 |
-| `/api/v1/sessions/{id}/slides/{filename}` | GET | 获取幻灯片文件（HTML/PNG） |
+| `/api/v1/sessions/{id}/slides/{filename}` | GET | 获取幻灯片文件（HTML，CSP 安全头） |
+| `/api/v1/sessions/{id}/slides/{page}/retry` | POST | 重新生成单张幻灯片 |
 | `/api/v1/templates` | GET | 获取模板列表 |
 
 ## 架构
@@ -154,15 +156,19 @@ uv run pytest tests/ -v
 - **主 Agent**：调度 7 个 async tool，管理对话流程，主动收集受众/核心信息
 - **深度研究**：`research_topic` 对主题进行多维度分析（3 步 LLM 调用），生成 `research_notes.md` 作为大纲生成的素材输入，agent 根据主题复杂度自主决定是否调用
 - **API 层**：FastAPI 实现 SSE 流式对话、会话管理、文件上传、模板查询
-- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 6 步进度条 + 研究笔记折叠展示 + 大纲结构化展示（含 visual_hint 标签） + 模板卡片 + 幻灯片预览 + 标签栏通知
+- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 6 步进度条 + 研究笔记折叠展示 + 大纲结构化展示（含 visual_hint 标签） + 模板库（侧边栏入口） + 模板卡片 + iframe 幻灯片实时预览（逐张流式渲染） + 单张重试 + 手动导出按钮 + 标签栏通知
 - **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
 - **内容质量**：SCQA 叙事框架 + Action Title（结论先行）+ SupportingPoint/Evidence 论据层次结构，大纲根据内容复杂度智能决定结构和页数
 - **视觉元素**：visual_hint 支持 table/comparison/timeline/process/chart/quote_highlight，指导内容区域渲染方式
 - **幻灯片一致性**：骨架模板（Skeleton）+ 内容分离架构，页码固定位置、headline 统一样式、CSS reset 全局一致，LLM 仅生成内容区域 HTML
+- **逐张流式渲染**：`asyncio.as_completed()` 逐张生成幻灯片，每完成一张通过 `asyncio.Queue` + SSE 推送 `slide_generated` 事件，前端实时渲染 iframe 预览（CSS transform 缩放缩略图）
+- **手动导出**：Agent 不自动调用 `export_pptx`，用户在界面预览确认后手动点击导出按钮，后端渲染 HTML→PNG→PPTX
+- **单张重试**：`POST /sessions/{id}/slides/{page}/retry` 端点，重试前备份原文件，失败自动恢复
 - **会话隔离**：每次 PPT 生成独立目录，`contextvars` + 中间件传递会话上下文，`SessionIndex` 管理历史
 - **对话持久化**：SQLite 持久化 agent 对话历史，重启后前端可恢复历史会话
 - **容错机制**：`asyncio.gather(return_exceptions=True)` 单页失败不影响整体；HTML 有效性校验；PPTX 嵌入异常跳过
-- **并发生成**：`asyncio.gather()` + `Semaphore` 控制幻灯片生成和渲染并发
+- **并发生成**：`asyncio.as_completed()` + `Semaphore` 控制幻灯片生成并发，逐张推送进度事件
+- **导出安全**：iframe `sandbox=""` + CSP `default-src 'none'` 阻断 LLM 生成 HTML 中的脚本执行
 - **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
 - **导出管线**：HTML → Playwright 截图(2x) → python-pptx 嵌入
 

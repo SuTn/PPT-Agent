@@ -5,6 +5,17 @@
         <div v-if="session" class="chat-title">{{ session.title || session.session_id }}</div>
       </div>
       <div class="header-actions">
+        <button
+          v-if="sessionStore.pipelineStep === 'slides_done' && !sessionStore.isStreaming"
+          class="btn-export"
+          :disabled="exporting"
+          @click="onExport"
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2v7M4 6l3 3 3-3M2 11h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          {{ exporting ? '导出中...' : '导出 PPTX' }}
+        </button>
         <a
           v-if="session?.step === 'exported'"
           :href="`/api/v1/sessions/${sessionId}/download`"
@@ -27,7 +38,7 @@
     <SlidePreview
       v-if="showSlidePreview"
       :session-id="sessionId"
-      :step="sessionStore.pipelineStep"
+      :slides="sessionStore.slides"
     />
     <div class="chat-footer">
       <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
@@ -37,9 +48,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useSessionsStore } from "../stores/sessions";
 import { useSessionStore } from "../stores/session";
+import client from "../api/client";
 import MessageList from "./MessageList.vue";
 import PipelineStepper from "./PipelineStepper.vue";
 import InputBar from "./InputBar.vue";
@@ -59,8 +71,7 @@ const showTemplateSelector = computed(() => {
 });
 
 const showSlidePreview = computed(() => {
-  const step = sessionStore.pipelineStep;
-  return step === "slides_done" || step === "exported";
+  return sessionStore.slides.length > 0 || sessionStore.pipelineStep === "slides_done" || sessionStore.pipelineStep === "exported";
 });
 
 onMounted(() => {
@@ -79,6 +90,17 @@ async function onTemplateSelect(key: string) {
 
 function onUploaded(result: string) {
   sessionStore.addSystemNotice(result);
+}
+
+const exporting = ref(false);
+async function onExport() {
+  exporting.value = true;
+  try {
+    await client.post(`/sessions/${props.sessionId}/export`);
+    await sessionsStore.refreshCurrent();
+  } finally {
+    exporting.value = false;
+  }
 }
 </script>
 
@@ -108,6 +130,28 @@ function onUploaded(result: string) {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
+}
+
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+.btn-export:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.btn-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .btn-download {

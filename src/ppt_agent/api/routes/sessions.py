@@ -1,3 +1,5 @@
+import asyncio
+import json
 import re
 import shutil
 import uuid
@@ -7,10 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
-from ppt_agent.agent.state import SessionEntry, SessionIndex, SessionState
+from ppt_agent.agent.state import SessionEntry, SessionIndex, PipelineStep, SessionState
 from ppt_agent.api.deps import get_agent
 from ppt_agent.api.streaming import event_stream_generator
-from ppt_agent.config import settings
+from ppt_agent.config import _current_session_dir, settings
+from ppt_agent.llm import get_model
+from ppt_agent.tools.export import do_export
+from ppt_agent.tools.slide_gen import _generate_one_slide, _is_valid_html
 
 router = APIRouter()
 
@@ -134,7 +139,7 @@ async def list_slides(session_id: str):
             slides.append({
                 "page": page,
                 "layout": layout,
-                "html": f.name,
+                "filename": f.name,
                 "has_png": png_path.exists(),
             })
     return {"slides": slides}
@@ -148,7 +153,10 @@ async def get_slide_file(session_id: str, filename: str):
     file_path = session_dir / "slides" / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(str(file_path))
+    return FileResponse(
+        str(file_path),
+        headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:;"},
+    )
 
 
 @router.get("/{session_id}/research")
@@ -161,6 +169,71 @@ async def get_research_notes(session_id: str):
         raise HTTPException(status_code=404, detail="Research notes not found")
     content = notes_path.read_text(encoding="utf-8")
     return {"content": content}
+
+
+@router.post("/{session_id}/export")
+async def export_session(session_id: str):
+    _validate_session(session_id)
+    session_dir = settings.output_dir / session_id
+    state = SessionState.load(session_dir / "session.json")
+    if state.step != PipelineStep.SLIDES_DONE and state.step != PipelineStep.EXPORTED:
+        raise HTTPException(status_code=400, detail="幻灯片未就绪，无法导出")
+    result = await do_export(session_dir)
+    return {"message": result}
+
+
+@router.post("/{session_id}/slides/{page}/retry")
+async def retry_slide(session_id: str, page: int):
+    _validate_session(session_id)
+    session_dir = settings.output_dir / session_id
+    state = SessionState.load(session_dir / "session.json")
+    if state.step not in (PipelineStep.SLIDES_DONE, PipelineStep.EXPORTED):
+        raise HTTPException(status_code=400, detail="幻灯片未就绪")
+
+    outline_path = session_dir / "outline.json"
+    style_spec_path = session_dir / "style_spec.json"
+    if not outline_path.exists() or not style_spec_path.exists():
+        raise HTTPException(status_code=400, detail="大纲或模板文件缺失")
+
+    outline = json.loads(outline_path.read_text("utf-8"))
+    style_spec = json.loads(style_spec_path.read_text("utf-8"))
+    slide_info = next((s for s in outline["slides"] if s["page"] == page), None)
+    if not slide_info:
+        raise HTTPException(status_code=404, detail=f"第 {page} 页不存在")
+
+    filename = f"slide_{page:02d}_{slide_info['layout']}.html"
+    filepath = session_dir / "slides" / filename
+
+    # Backup original file
+    backup = filepath.with_suffix(".html.bak")
+    if filepath.exists():
+        shutil.copy2(filepath, backup)
+
+    try:
+        token = _current_session_dir.set(session_dir)
+        try:
+            model = get_model()
+            sem = asyncio.Semaphore(1)
+            _, html = await _generate_one_slide(
+                sem, model, slide_info, len(outline["slides"]), style_spec, state.template_key or ""
+            )
+        finally:
+            _current_session_dir.reset(token)
+
+        if not html or not _is_valid_html(html):
+            raise HTTPException(status_code=500, detail="重新生成失败：HTML 内容无效")
+
+        filepath.write_text(html, encoding="utf-8")
+        backup.unlink(missing_ok=True)
+        return {"page": page, "filename": filename, "status": "regenerated"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Restore backup on failure
+        if backup.exists():
+            shutil.copy2(backup, filepath)
+            backup.unlink()
+        raise HTTPException(status_code=500, detail=f"重新生成失败: {e}")
 
 
 def _validate_session(session_id: str):
