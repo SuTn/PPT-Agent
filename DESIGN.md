@@ -591,6 +591,19 @@ web/
 **选择**：预定义 5 种布局的 HTML 骨架（cover/toc/content/section/ending），LLM 只生成内容区域 HTML，`render_skeleton()` 合并骨架 + style_spec + 内容。
 **原因**：每页由 LLM 独立生成，完全自由的输出导致页码位置不一致、headline 样式不一。骨架固定 header（headline）、footer（右下角页码）、CSS reset，确保跨页一致性。模板可覆盖 `skeletons/{layout}.html` 实现自定义布局。
 
+### 9.22 PlaywrightSearchProvider 浏览器搜索
+
+**选择**：基于 Playwright async API 实现 `PlaywrightSearchProvider`，通过操作 Bing 搜索引擎获取结果并抓取页面内容。
+**原因**：Tavily 等 API 需要付费密钥，且无法控制搜索源。浏览器搜索零成本，可访问任何网站，支持中文搜索。使用 `SearchProvider` 协议保持架构一致，`get_search_provider()` 根据 `PPT_AGENT_SEARCH_PROVIDER` 配置返回对应实现。
+
+**关键设计**：
+- 浏览器实例生命周期：Provider 级别共享，`asyncio.Lock` 保护懒启动，`aclose()` 显式关闭
+- SERP 解析：Bing `.b_algo` 选择器提取标题、URL、摘要，降级到 SERP snippet 作为 fallback
+- 内容提取：Playwright `wait_until="networkidle"` 等 JS 渲染 → `page.content()` → trafilatura 提取正文
+- 去重与过滤：域名去重、URL 后缀过滤非 HTML 资源、< 200 字内容标记无效
+- 反爬：隐藏 `navigator.webdriver`、真实 User-Agent 池、随机延迟（0.5-1.5s）
+- 超时控制：Bing 搜索 15s、页面加载 10s，超时跳过
+
 ---
 
 ## 11. 已修复问题

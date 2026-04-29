@@ -11,11 +11,16 @@ dependencies = [
     "markitdown[pdf]>=0.1.1",
     "playwright>=1.58.0",
     "pydantic-settings>=2.14.0",
+    "trafilatura>=2.0.0",
     "python-multipart>=0.0.20",
     "python-pptx>=1.0.2",
     "uvicorn[standard]>=0.34.0",
     "zhipuai>=2.1.5.20250825",
 ]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
 
 [project.scripts]
 ppt-agent = "ppt_agent.main:main"

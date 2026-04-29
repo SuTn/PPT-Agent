@@ -1,6 +1,14 @@
 import pytest
 
-from ppt_agent.search import SearchResult, TavilySearchProvider, get_search_provider
+from ppt_agent.search import (
+    SearchResult,
+    TavilySearchProvider,
+    PlaywrightSearchProvider,
+    get_search_provider,
+    _is_html_url,
+    _extract_domain,
+    _extract_text,
+)
 from ppt_agent.prompts.research import _search_results_section
 
 
@@ -52,6 +60,11 @@ class TestGetSearchProvider:
         assert isinstance(provider, TavilySearchProvider)
         assert provider._api_key == "tvly-test"
 
+    def test_returns_playwright_when_configured(self, monkeypatch):
+        monkeypatch.setattr("ppt_agent.search.settings.search_provider", "playwright")
+        provider = get_search_provider()
+        assert isinstance(provider, PlaywrightSearchProvider)
+
 
 class TestTavilySearchProvider:
     @pytest.mark.asyncio
@@ -91,3 +104,32 @@ class TestTavilySearchProvider:
         assert results[1].url == "https://b.com"
         assert fake.last_json["query"] == "test query"
         assert fake.last_json["max_results"] == 3
+
+
+class TestHelpers:
+    def test_is_html_url(self):
+        assert _is_html_url("https://example.com/page") is True
+        assert _is_html_url("https://example.com/page.html") is True
+        assert _is_html_url("https://example.com/file.pdf") is False
+        assert _is_html_url("https://example.com/file.xlsx") is False
+        assert _is_html_url("https://example.com/video.mp4") is False
+
+    def test_extract_domain(self):
+        assert _extract_domain("https://www.example.com/path") == "www.example.com"
+        assert _extract_domain("https://example.com") == "example.com"
+        assert _extract_domain("https://sub.domain.com/q") == "sub.domain.com"
+
+    def test_extract_text(self):
+        html = "<html><body><article>" + "Main content. " * 50 + "</article></body></html>"
+        text = _extract_text(html)
+        assert "Main content" in text
+        assert len(text) > 100
+
+    def test_extract_text_empty(self):
+        text = _extract_text("<html><body></body></html>")
+        assert text == ""
+
+    def test_extract_text_truncation(self):
+        html = "<html><body><article>" + "Word " * 10000 + "</article></body></html>"
+        text = _extract_text(html, max_chars=2000)
+        assert len(text) <= 2000

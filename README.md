@@ -101,12 +101,22 @@ npm run dev
 
 ## 联网搜索（可选）
 
-配置搜索 API 后，研究阶段会自动为每个维度搜索最新网络信息，提升内容时效性和准确性。
+配置搜索后，研究阶段会自动为每个维度搜索最新网络信息，提升内容时效性和准确性。
 
 | 环境变量 | 说明 |
 |--------|------|
-| `PPT_AGENT_SEARCH_PROVIDER` | 搜索提供商，目前支持 `tavily`。留空则禁用联网搜索。 |
-| `PPT_AGENT_TAVILY_API_KEY` | Tavily API Key（[免费注册](https://tavily.com)） |
+| `PPT_AGENT_SEARCH_PROVIDER` | 搜索提供商：`tavily`（API）、`playwright`（浏览器）。留空则禁用联网搜索。 |
+| `PPT_AGENT_TAVILY_API_KEY` | Tavily API Key（[免费注册](https://tavily.com)），`tavily` 模式必填 |
+
+### 搜索模式对比
+
+| | Tavily（API） | Playwright（浏览器） |
+|---|---|---|
+| 配置 | 需要 API Key | 无需 Key |
+| 速度 | 快（<2s） | 较慢（~10-15s） |
+| 内容质量 | API 预处理 | trafilatura 提取正文 |
+| 依赖 | httpx | Playwright（已内置） |
+| 反爬风险 | 无 | 有（Bing 可能拦截） |
 
 ## 并发配置
 
