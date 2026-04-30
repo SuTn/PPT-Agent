@@ -87,7 +87,7 @@ async def event_stream_generator(
 
             elif msg.type == "tool":
                 content = str(msg.content)
-                if len(content) > 1000:
+                if len(content) > 1000 and msg.name != "generate_outline":
                     content = content[:1000] + "...(truncated)"
                 yield _format_sse(
                     {"type": "tool_result", "name": msg.name, "content": content}

@@ -30,28 +30,33 @@ function createSessionStore(sessionId: string) {
     const outline = ref<any>(null);
     const researchNotes = ref<string>("");
     const slides = ref<SlideInfo[]>([]);
+    const mode = ref<"fast" | "standard">("fast");
 
     async function loadHistory() {
       if (loaded.value) return;
       try {
         const { data } = await client.get(`/sessions/${sessionId}`);
         if (data.step) pipelineStep.value = data.step;
+        if (data.mode) mode.value = data.mode;
         if (data.messages && Array.isArray(data.messages)) {
           messages.value = data.messages
             .filter((m: any) => m.content || m.tool_calls)
             .map((m: any) => {
               const msg: Message = { role: m.type === "ai" ? "assistant" : m.type === "tool" ? "system" : m.type, content: m.content || "" };
               if (m.tool_calls) msg.toolCalls = m.tool_calls;
-              if (m.type === "tool") msg.toolResult = true;
+              if (m.type === "tool") {
+                msg.toolResult = true;
+                msg.content = `[${m.name}] ${m.content}`;
+              }
               return msg;
             });
-          // Restore outline from history
-          for (const msg of messages.value) {
-            if (msg.toolResult && msg.content.startsWith("[generate_outline]")) {
-              const jsonStr = msg.content.replace(/^\[generate_outline\]\s*/, "");
-              try { outline.value = JSON.parse(jsonStr); } catch { /* ignore */ }
-              break;
-            }
+          // Restore outline from API
+          const outlineSteps = ["outline_done", "template_done", "slides_done", "exported"];
+          if (outlineSteps.includes(pipelineStep.value)) {
+            try {
+              const { data: od } = await client.get(`/sessions/${sessionId}/outline`);
+              if (od) outline.value = od;
+            } catch { /* no outline */ }
           }
           // Restore research notes from API if research was done
           const researchSteps = ["research_done", "outline_done", "template_done", "slides_done", "exported"];
@@ -86,7 +91,7 @@ function createSessionStore(sessionId: string) {
 
       try {
         const res = await fetch(
-          `/api/v1/sessions/${sessionId}/stream?message=${encodeURIComponent(content)}`
+          `/api/v1/sessions/${sessionId}/stream?message=${encodeURIComponent(content)}&mode=${mode.value}`
         );
 
         if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -144,12 +149,15 @@ function createSessionStore(sessionId: string) {
                 if (TOOL_TO_STEP[toolName]) {
                   pipelineStep.value = TOOL_TO_STEP[toolName];
                 }
-                // Parse outline from generate_outline tool result
+                // Parse outline from tool result
                 if (toolName === "generate_outline" && toolContent.trim().startsWith("{")) {
                   try {
                     outline.value = JSON.parse(toolContent);
                   } catch {
-                    // not valid JSON
+                    // Fallback: fetch from API
+                    client.get(`/sessions/${sessionId}/outline`).then(({ data }) => {
+                      if (data) outline.value = data;
+                    }).catch(() => {});
                   }
                 }
                 // Fetch research notes after research_topic completes
@@ -265,7 +273,7 @@ function createSessionStore(sessionId: string) {
       } catch { /* ignore */ }
     }
 
-    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, slides, sendMessage, addSystemNotice, loadHistory, refreshSlides };
+    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, slides, mode, sendMessage, addSystemNotice, loadHistory, refreshSlides };
   })();
 }
 

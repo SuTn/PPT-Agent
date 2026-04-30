@@ -36,7 +36,7 @@
         </div>
       </template>
       <template v-else>
-        <OutlinePreview v-if="isOutlineResult(msg)" :outline="parseOutline(msg.content)" />
+        <OutlinePreview v-if="isOutlineResult(msg) && props.outline" :outline="props.outline" />
         <ResearchPreview v-else-if="isResearchResult(msg) && props.researchNotes" :content="props.researchNotes" />
         <div v-else class="system-notice">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -66,6 +66,7 @@ const props = defineProps<{
   messages: Message[];
   isStreaming: boolean;
   researchNotes?: string;
+  outline?: any;
 }>();
 
 defineEmits<{
@@ -134,15 +135,6 @@ function isOutlineResult(msg: Message): boolean {
 
 function isResearchResult(msg: Message): boolean {
   return msg.toolResult === true && msg.content.startsWith("[research_topic]");
-}
-
-function parseOutline(content: string): any {
-  const jsonStr = content.replace(/^\[generate_outline\]\s*/, "");
-  try {
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
 }
 
 watch([() => props.messages, () => props.isStreaming], () => {

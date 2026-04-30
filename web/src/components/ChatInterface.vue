@@ -30,7 +30,7 @@
       </div>
     </header>
     <PipelineStepper :current-step="sessionStore.pipelineStep" />
-    <MessageList :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" :research-notes="sessionStore.researchNotes" @send="onSend" />
+    <MessageList :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" :research-notes="sessionStore.researchNotes" :outline="sessionStore.outline" @send="onSend" />
     <TemplateSelector
       v-if="showTemplateSelector"
       @select="onTemplateSelect"
@@ -50,9 +50,9 @@
       @close="editingSlide = null"
       @saved="onSlideSaved"
     />
-    <div class="chat-footer">
+    <div class="chat-footer" v-if="!showTemplateSelector">
       <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
-      <InputBar :disabled="sessionStore.isStreaming" @send="onSend" />
+      <InputBar :disabled="sessionStore.isStreaming" v-model:mode="sessionStore.mode" @send="onSend" />
     </div>
   </div>
 </template>
@@ -78,8 +78,11 @@ const sessionStore = useSessionStore(props.sessionId);
 const session = computed(() => sessionsStore.current);
 
 const showTemplateSelector = computed(() => {
-  const step = sessionStore.pipelineStep;
-  return step === "outline_done" && !sessionStore.isStreaming;
+  if (sessionStore.pipelineStep !== "idle" || sessionStore.isStreaming) return false;
+  const msgs = sessionStore.messages;
+  const lastAssistant = [...msgs].reverse().find(m => m.role === "assistant");
+  if (!lastAssistant) return false;
+  return /模板选择|选择模板|选择.*模板/.test(lastAssistant.content);
 });
 
 const showSlidePreview = computed(() => {

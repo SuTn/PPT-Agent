@@ -1,6 +1,10 @@
 <template>
   <form class="input-bar" @submit.prevent="handleSubmit">
     <div class="input-wrapper" :class="{ focused }">
+      <div class="mode-toggle">
+        <button type="button" class="mode-btn" :class="{ active: mode === 'fast' }" @click="$emit('update:mode', 'fast')" title="快速模式：自动完成所有步骤">快速</button>
+        <button type="button" class="mode-btn" :class="{ active: mode === 'standard' }" @click="$emit('update:mode', 'standard')" title="标准模式：逐步确认大纲和模板">标准</button>
+      </div>
       <textarea
         v-model="text"
         @keydown.enter.exact.prevent="handleSubmit"
@@ -26,10 +30,12 @@ import { ref, nextTick } from "vue";
 
 const props = defineProps<{
   disabled?: boolean;
+  mode?: "fast" | "standard";
 }>();
 
 const emit = defineEmits<{
   send: [content: string];
+  "update:mode": [mode: "fast" | "standard"];
 }>();
 
 const text = ref("");
@@ -68,13 +74,41 @@ function autoResize() {
   background: var(--card);
   border: 2px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-lg);
+  padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .input-wrapper.focused {
   border-color: var(--primary-light);
   box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.mode-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.mode-btn {
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.mode-btn:hover {
+  color: var(--text-secondary);
+}
+.mode-btn.active {
+  background: var(--primary);
+  color: white;
 }
 
 textarea {

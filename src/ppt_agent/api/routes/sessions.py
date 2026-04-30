@@ -5,7 +5,7 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -16,6 +16,7 @@ from ppt_agent.config import _current_session_dir, settings
 from ppt_agent.llm import get_model
 from ppt_agent.tools.export import do_export
 from ppt_agent.tools.slide_gen import _generate_one_slide, _is_valid_html
+from ppt_agent.agent.agent import create_ppt_agent
 
 router = APIRouter()
 
@@ -100,13 +101,27 @@ async def send_message(
 async def stream_message(
     session_id: str,
     message: str,
+    mode: str = "",
+    request: Request = None,
     agent=Depends(get_agent),
 ):
     _validate_session(session_id)
+    session_dir = settings.output_dir / session_id
+    state = SessionState.load(session_dir / "session.json")
+
+    # Update mode if provided
+    if mode in ("fast", "standard"):
+        state.mode = mode
+        state.save(session_dir / "session.json")
+
+    # Create agent with mode-specific prompt
+    checkpointer = request.app.state.checkpointer
+    effective_agent = create_ppt_agent(checkpointer, mode=state.mode or "fast")
+
     config = {"configurable": {"thread_id": session_id}}
 
     return StreamingResponse(
-        event_stream_generator(agent, message, config, session_id),
+        event_stream_generator(effective_agent, message, config, session_id),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -202,6 +217,17 @@ async def get_research_notes(session_id: str):
         raise HTTPException(status_code=404, detail="Research notes not found")
     content = notes_path.read_text(encoding="utf-8")
     return {"content": content}
+
+
+@router.get("/{session_id}/outline")
+async def get_outline(session_id: str):
+    session_dir = settings.output_dir / session_id
+    if not session_dir.exists():
+        raise HTTPException(status_code=404, detail="Session not found")
+    outline_path = session_dir / "outline.json"
+    if not outline_path.exists():
+        raise HTTPException(status_code=404, detail="Outline not found")
+    return json.loads(outline_path.read_text(encoding="utf-8"))
 
 
 @router.post("/{session_id}/export")

@@ -83,6 +83,7 @@ class SessionState(BaseModel):
     pptx_file: str = ""
     template_key: str = ""
     created_at: str = ""
+    mode: str = "fast"  # "fast" or "standard"
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
