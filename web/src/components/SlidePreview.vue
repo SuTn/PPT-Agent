@@ -80,14 +80,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, watch } from "vue";
 import type { SlideInfo } from "../api/types";
 import client from "../api/client";
 
 const props = defineProps<{
   sessionId: string;
   slides: SlideInfo[];
+  savedPage?: number | null;
 }>();
+
+watch(() => props.savedPage, (page) => {
+  if (page != null) {
+    slideVersions[page] = (slideVersions[page] ?? 0) + 1;
+  }
+});
 
 const emit = defineEmits<{
   (e: "retry", page: number): void;

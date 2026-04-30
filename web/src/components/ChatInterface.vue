@@ -39,6 +39,7 @@
       v-if="showSlidePreview"
       :session-id="sessionId"
       :slides="sessionStore.slides"
+      :saved-page="savedPage"
       @edit="editingSlide = $event"
     />
     <SlideEditor
@@ -105,6 +106,7 @@ function onUploaded(result: string) {
 
 const exporting = ref(false);
 const editingSlide = ref<SlideInfo | null>(null);
+const savedPage = ref<number | null>(null);
 async function onExport() {
   exporting.value = true;
   try {
@@ -115,7 +117,8 @@ async function onExport() {
   }
 }
 
-async function onSlideSaved() {
+async function onSlideSaved(page: number) {
+  savedPage.value = page;
   await sessionStore.refreshSlides();
 }
 </script>
