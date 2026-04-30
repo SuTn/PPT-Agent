@@ -66,13 +66,18 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 - headline 必须是**完整陈述句**，直接传达本页核心结论
 - ✅ "企业引入自动化后交付周期缩短了 60%"
 - ❌ "企业自动化实践"（只是话题标签，不是结论）
-- 保持简短有力，避免超过 20 字
+- **长度硬限制**：cover 和 ending 页 headline ≤ 20 字，content 和 section 页 ≤ 25 字。超出时精简措辞而非删减结论
 
 ### section 页使用规则
 - 用 `layout: "section"` 标记叙事阶段的**转折点**（如从 situation 进入 complication）
 - section 页不包含 supporting_points，只用 headline 概括接下来的叙事阶段
 - 典型用法：在 cover → toc 之后，用 section 页分隔各叙事阶段
 - 不要过度使用：5-8 页的简单演示可能只需要 0-1 个 section 页
+
+### TOC 页内容规则
+- TOC 页的 supporting_points 必须逐条列出后续各 section 页的 headline
+- 章节条目必须与大纲中实际的 section 页一一匹配，不得自创通用话题标签
+- 格式：`supporting_points: [{{"message": "section 页的完整 headline", "evidence": []}}, ...]`
 
 ### body_text 使用规则
 - 用 `body_text` 提供 1-2 句补充说明，帮助理解 headline 的背景或语境
@@ -83,9 +88,11 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 - 每页聚焦一个核心论点，supporting_points 数量根据内容需要决定
 - evidence_type：data（数据）、case_study（案例）、quote（引用）、analysis（分析）、analogy（类比）
 - 有力的证据一个就够了，不要凑数
+- 当 evidence 包含多个独立实体的对比数据时（如多品牌/多方案/多指标），应拆分为多个 supporting_point，每个 point 聚焦一个实体或维度，方便后续映射为表格行或图表数据点
 - 如果上方有研究笔记，优先使用标注为 [已验证] 或 [行业共识] 的事实
 - 避免使用标注为 [待验证] 的信息作为核心论据
 - 不要编造具体数据。如果研究笔记中没有确切数字，用定性描述代替
+- 如果研究笔记将某主题标注为「研究空白」或「知识空白」，不应为其创建独立 content 页；可在结尾 ending 页简要点及，或合并到相关 content 页作为补充
 
 ### 视觉元素（visual_hint）
 当内容适合用特定视觉形式呈现时，在 `visual_hint` 字段标注：
@@ -136,7 +143,10 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
       "page": 2,
       "layout": "toc",
       "headline": "概括演示主线的标题",
-      "supporting_points": []
+      "supporting_points": [
+        {{"message": "第一个 section 页的 headline", "evidence": []}},
+        {{"message": "第二个 section 页的 headline", "evidence": []}}
+      ]
     }},
     {{
       "page": 3,
@@ -184,7 +194,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
   }},
   "slides": [
     {{"page": 1, "layout": "cover", "headline": "远程时代，管理从「看得见」转向「信得过」", "supporting_points": []}},
-    {{"page": 2, "layout": "toc", "headline": "从现状到方案：远程管理模式的四个关键转变", "supporting_points": []}},
+    {{"page": 2, "layout": "toc", "headline": "从现状到方案：远程管理模式的四个关键转变", "supporting_points": [{{"message": "远程办公已成为不可逆转的工作方式", "evidence": []}}, {{"message": "传统管理模式在远程环境下全面失效", "evidence": []}}]}},
     {{"page": 3, "layout": "section", "headline": "远程办公已成为不可逆转的工作方式", "section": "situation", "supporting_points": []}},
     {{
       "page": 4, "layout": "content", "headline": "全球 74% 的企业已采用混合办公模式",
@@ -209,6 +219,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 - evidence 提供具体来源，不是空洞描述
 
 - cover 和 ending 页不需要 supporting_points
+- toc 页的 supporting_points 列出各 section 页的 headline，一一对应
 - toc 页 headline 概括演示主线
 - section 页 headline 是该章节的核心结论
 - 从用户需求中推断 audience 和 objective，据此调整术语深度

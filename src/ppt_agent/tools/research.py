@@ -18,6 +18,7 @@ from ppt_agent.prompts.research import (
     _research_materials_section,
     _research_requirements_section,
     _search_results_section,
+    _time_section,
 )
 from ppt_agent.search import get_search_provider, cleanup_browser_threads
 
@@ -149,6 +150,7 @@ async def _step2_research_dimension(
             materials_section=_research_materials_section(materials),
             search_section=_search_results_section(search_results),
             audience_value_hint=audience_value_hint,
+            time_section=_time_section(),
         )
         result = await model.ainvoke([HumanMessage(content=prompt)])
         return result.content
@@ -169,6 +171,7 @@ async def _step3_synthesize(
         objective_section=_objective_section(objective),
         dimension_research=dimension_research,
         materials_section=_research_materials_section(materials),
+        time_section=_time_section(),
     )
     result = await model.ainvoke([HumanMessage(content=prompt)])
     return result.content
