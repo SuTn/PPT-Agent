@@ -258,7 +258,14 @@ function createSessionStore(sessionId: string) {
     // Stop flashing when user focuses the tab
     window.addEventListener("focus", stopTitleFlash);
 
-    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, slides, sendMessage, addSystemNotice, loadHistory };
+    async function refreshSlides() {
+      try {
+        const { data: sd } = await client.get(`/sessions/${sessionId}/slides`);
+        if (sd?.slides) slides.value = sd.slides;
+      } catch { /* ignore */ }
+    }
+
+    return { messages, isStreaming, error, pipelineStep, outline, researchNotes, slides, sendMessage, addSystemNotice, loadHistory, refreshSlides };
   })();
 }
 

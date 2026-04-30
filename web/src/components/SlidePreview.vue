@@ -30,6 +30,15 @@
           </div>
           <div class="thumb-page">{{ slide.page }}</div>
           <button
+            class="btn-edit"
+            @click.stop="$emit('edit', slide)"
+            title="编辑"
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M8.5 1.5l2 2-7 7H1.5V8.5l7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <button
             class="btn-retry"
             :disabled="retryingPage === slide.page"
             @click.stop="retrySlide(slide.page)"
@@ -45,6 +54,11 @@
     </div>
     <div v-if="previewSlide" class="preview-overlay" @click.self="previewSlide = null">
       <div class="preview-modal">
+        <button class="preview-edit" @click="$emit('edit', previewSlide); previewSlide = null" title="编辑">
+          <svg width="16" height="16" viewBox="0 0 12 12" fill="none">
+            <path d="M8.5 1.5l2 2-7 7H1.5V8.5l7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="preview-close" @click="previewSlide = null">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
             <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -77,6 +91,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "retry", page: number): void;
+  (e: "edit", slide: SlideInfo): void;
 }>();
 
 const expanded = ref(true);
@@ -194,6 +209,31 @@ async function retrySlide(page: number) {
   border-radius: 3px;
 }
 
+.btn-edit {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.slide-thumb:hover .btn-edit {
+  opacity: 1;
+}
+.btn-edit:hover {
+  background: var(--info);
+}
+
 .btn-retry {
   position: absolute;
   top: 4px;
@@ -274,5 +314,24 @@ async function retrySlide(page: number) {
   align-items: center;
   justify-content: center;
   color: var(--text);
+}
+.preview-edit {
+  position: absolute;
+  top: -32px;
+  right: 36px;
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+.preview-edit:hover {
+  background: var(--primary);
+  color: white;
 }
 </style>

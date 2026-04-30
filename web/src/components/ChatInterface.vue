@@ -39,6 +39,15 @@
       v-if="showSlidePreview"
       :session-id="sessionId"
       :slides="sessionStore.slides"
+      @edit="editingSlide = $event"
+    />
+    <SlideEditor
+      v-if="editingSlide"
+      :session-id="sessionId"
+      :slide="editingSlide"
+      :slides="sessionStore.slides"
+      @close="editingSlide = null"
+      @saved="onSlideSaved"
     />
     <div class="chat-footer">
       <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
@@ -58,6 +67,8 @@ import InputBar from "./InputBar.vue";
 import FileUpload from "./FileUpload.vue";
 import TemplateSelector from "./TemplateSelector.vue";
 import SlidePreview from "./SlidePreview.vue";
+import SlideEditor from "./SlideEditor.vue";
+import type { SlideInfo } from "../api/types";
 
 const props = defineProps<{ sessionId: string }>();
 
@@ -93,6 +104,7 @@ function onUploaded(result: string) {
 }
 
 const exporting = ref(false);
+const editingSlide = ref<SlideInfo | null>(null);
 async function onExport() {
   exporting.value = true;
   try {
@@ -101,6 +113,10 @@ async function onExport() {
   } finally {
     exporting.value = false;
   }
+}
+
+async function onSlideSaved() {
+  await sessionStore.refreshSlides();
 }
 </script>
 

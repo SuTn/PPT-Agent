@@ -159,6 +159,39 @@ async def get_slide_file(session_id: str, filename: str):
     )
 
 
+@router.put("/{session_id}/slides/{filename}")
+async def save_slide(session_id: str, filename: str, body: dict):
+    _validate_session(session_id)
+
+    if not re.match(r"^slide_\d+_[a-z_]+\.html$", filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    session_dir = settings.output_dir / session_id
+    file_path = session_dir / "slides" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    html_content = body.get("html", "")
+    if not html_content or not _is_valid_html(html_content):
+        raise HTTPException(status_code=400, detail="Invalid HTML content")
+
+    backup = file_path.with_suffix(".html.bak")
+    shutil.copy2(file_path, backup)
+
+    try:
+        file_path.write_text(html_content, encoding="utf-8")
+        png_path = file_path.with_suffix(".png")
+        if png_path.exists():
+            png_path.unlink()
+        page = int(re.match(r"slide_(\d+)", filename).group(1))
+        return {"filename": filename, "page": page, "size": len(html_content.encode("utf-8"))}
+    except Exception as e:
+        shutil.copy2(backup, file_path)
+        raise HTTPException(status_code=500, detail=f"Save failed: {e}")
+    finally:
+        backup.unlink(missing_ok=True)
+
+
 @router.get("/{session_id}/research")
 async def get_research_notes(session_id: str):
     session_dir = settings.output_dir / session_id
