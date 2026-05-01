@@ -498,9 +498,8 @@ web/
 ### 8.4 待开发
 
 - [x] 联网搜索（Tavily，SearchProvider 可扩展架构）
+- [x] 浏览器搜索（Playwright 操作浏览器，基于 SearchProvider 扩展）
 - [ ] AI 自定义风格生成
-- [ ] PDF 导出
-- [ ] 浏览器搜索（Playwright 操作浏览器，基于 SearchProvider 扩展）
 
 ---
 
