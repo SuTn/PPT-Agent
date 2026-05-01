@@ -42,7 +42,7 @@ function createSessionStore(sessionId: string) {
           messages.value = data.messages
             .filter((m: any) => m.content || m.tool_calls)
             .map((m: any) => {
-              const msg: Message = { role: m.type === "ai" ? "assistant" : m.type === "tool" ? "system" : m.type, content: m.content || "" };
+              const msg: Message = { role: m.type === "ai" ? "assistant" : m.type === "human" ? "user" : m.type === "tool" ? "system" : m.type, content: m.content || "" };
               if (m.tool_calls) msg.toolCalls = m.tool_calls;
               if (m.type === "tool") {
                 msg.toolResult = true;

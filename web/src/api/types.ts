@@ -1,7 +1,7 @@
 export interface Session {
   session_id: string;
   title: string;
-  step: "idle" | "research_done" | "outline_done" | "template_done" | "slides_done" | "exported";
+  step: "idle" | "template_done" | "research_done" | "outline_done" | "slides_done" | "exported";
   template_key: string;
   created_at: string;
 }

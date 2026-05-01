@@ -19,13 +19,13 @@ const props = defineProps<{
   currentStep: string;
 }>();
 
-const STEP_ORDER = ["idle", "research_done", "outline_done", "template_done", "slides_done", "exported"];
+const STEP_ORDER = ["idle", "template_done", "research_done", "outline_done", "slides_done", "exported"];
 
 const steps = [
   { key: "idle", label: "开始" },
+  { key: "template_done", label: "模板" },
   { key: "research_done", label: "研究" },
   { key: "outline_done", label: "大纲" },
-  { key: "template_done", label: "模板" },
   { key: "slides_done", label: "幻灯片" },
   { key: "exported", label: "导出" },
 ];

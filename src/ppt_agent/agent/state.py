@@ -65,9 +65,9 @@ class Outline(BaseModel):
 
 class PipelineStep(str, Enum):
     IDLE = "idle"
+    TEMPLATE_DONE = "template_done"
     RESEARCH_DONE = "research_done"
     OUTLINE_DONE = "outline_done"
-    TEMPLATE_DONE = "template_done"
     SLIDES_DONE = "slides_done"
     EXPORTED = "exported"
 

@@ -141,7 +141,7 @@ class Settings(BaseSettings):
 ### 4.1 PipelineStep 枚举
 
 ```
-IDLE → RESEARCH_DONE → OUTLINE_DONE → TEMPLATE_DONE → SLIDES_DONE → EXPORTED
+IDLE → TEMPLATE_DONE → RESEARCH_DONE → OUTLINE_DONE → SLIDES_DONE → EXPORTED
 ```
 
 ### 4.2 SessionState 结构
