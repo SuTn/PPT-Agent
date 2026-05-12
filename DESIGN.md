@@ -1,7 +1,7 @@
 # PPT-Agent 设计方案
 
 > 通过对话与可选文件上传，AI 驱动的 PowerPoint 演示文稿生成系统。
-> 核心路径：LLM 生成 HTML 幻灯片 → 截图嵌入 PPTX（无图像生成模型依赖）。
+> 核心路径：LLM 生成 HTML 幻灯片 → 前端可编辑 PPTX 导出或后端图片导出。
 
 ---
 
@@ -28,7 +28,7 @@
 | **风格选择** | `select_template` tool | 模板名 | style_spec.json | 0 次 |
 | **幻灯片生成** | `generate_slides` tool | outline + style_spec | N 个 HTML 文件（逐张流式推送） | N 次（并发） |
 | **实时预览** | SSE `slide_generated` 事件 | HTML 文件路径 | 前端 iframe 渲染 | 0 次 |
-| **导出** | `POST /export` API | slides/ 目录 | .pptx 文件 | 0 次 |
+| **导出** | `POST /export` API 或前端 dom-to-pptx | slides/ 目录 | .pptx 文件 | 0 次 |
 
 ### 1.3 上下文控制
 
@@ -79,7 +79,7 @@
 | 状态管理 | Pinia |
 | HTTP 客户端 | axios |
 | Markdown | marked + DOMPurify |
-| 样式 | CSS (scoped) + CSS Variables 设计系统 |
+| PPTX 导出 | dom-to-pptx（PptxGenJS 封装） |
 
 ---
 
@@ -316,8 +316,24 @@ SearchProvider (Protocol)
 
 ## 7. 导出管线
 
+### 7.1 可编辑 PPTX 导出（前端，默认）
+
 ```
-HTML → Playwright 截图(2x, 并发) → PNG → python-pptx 嵌入 → .pptx
+HTML → 前端 iframe 渲染 → dom-to-pptx DOM 遍历 → PptxGenJS 原生元素 → .pptx（可编辑）
+```
+
+纯前端方案，使用 LandPPT 的 `dom-to-pptx.bundle.js`（PptxGenJS + JSZip 封装）：
+- 动态加载 bundle（`<script>` 注入，幂等）
+- 逐页将 HTML 加载到离屏 1280×720 iframe
+- 等待渲染就绪（`document.fonts.ready` + `requestAnimationFrame` + settle 延迟）
+- `exportToPptx()` 递归遍历 DOM，映射为原生 PPTX 元素（文本框、表格、图片、形状）
+- 自动检测并嵌入字体
+- 浏览器直接下载，零服务端依赖
+
+### 7.2 图片 PPTX 导出（后端，备选）
+
+```
+HTML → Playwright 截图(2x, 并发) → PNG → python-pptx 嵌入 → .pptx（图片，不可编辑）
 ```
 
 - **Sync API + `asyncio.to_thread()`**：使用同步 Playwright 避免与 uvicorn 的事件循环冲突（Windows 兼容）
@@ -406,6 +422,7 @@ web/
 │   │   └── session.ts           # 单会话 store（SSE 流处理 + pipeline step）
 │   ├── components/
 │   │   ├── App.vue              # 根组件（欢迎屏）
+│   │   ├── ChatInterface.vue    # 对话主界面（编排器，含导出模式下拉）
 │   │   ├── ChatInterface.vue    # 对话主界面（编排器）
 │   │   ├── SessionList.vue      # 侧边栏会话列表
 │   │   ├── MessageList.vue      # 消息列表（Markdown + DOMPurify + 工具卡片）
@@ -417,7 +434,13 @@ web/
 │   │   ├── TemplateSelector.vue # 模板选择器
 │   │   ├── TemplateCard.vue     # 模板预览卡片（渐变色条）
 │   │   ├── TemplateLibrary.vue  # 模板库模态框（Teleport，侧边栏入口）
-│   │   └── SlidePreview.vue     # 幻灯片预览（iframe + CSS transform 缩略图 + 单张重试）
+│   │   ├── SlidePreview.vue     # 幻灯片预览（iframe + CSS transform 缩略图 + 单张重试）
+│   │   ├── SlideEditor.vue      # 幻灯片编辑器（可视化 + 源码双模式）
+│   │   ├── VisualEditor.vue     # 可视化编辑器（contentEditable iframe）
+│   │   └── SourceEditor.vue     # 源码编辑器（textarea + iframe 实时预览）
+│   ├── export/
+│   │   ├── types.ts             # dom-to-pptx bundle TypeScript 类型声明
+│   │   └── editableExport.ts    # 可编辑 PPTX 导出（bundle 加载 + iframe 渲染 + DOM→PPTX）
 │   └── styles/
 │       └── main.css             # CSS Variables 设计系统
 └── package.json
@@ -441,7 +464,8 @@ web/
 - [x] 模板库（侧边栏入口，Teleport 模态框，渐变色条 + 调色板预览）
 - [x] 并发 PNG 渲染（浏览器复用 + Semaphore + 容错）
 - [x] 9 个预设模板
-- [x] Playwright 2x 截图 + python-pptx 导出
+- [x] Playwright 2x 截图 + python-pptx 导出（图片模式）
+- [x] 前端可编辑 PPTX 导出（dom-to-pptx，PptxGenJS 原生元素）
 - [x] 4 个 LLM 提供商
 - [x] Outline Pydantic 校验 + 结构化重试
 - [x] SCQA 叙事框架 + Action Title + Evidence 论据结构
@@ -490,7 +514,7 @@ web/
 - [x] 模板选择卡片（TemplateCard：渐变色条预览 + TemplateSelector 水平滚动）
 - [x] 幻灯片 iframe 实时预览（SlidePreview：逐张流式渲染 + CSS transform 缩略图 + 点击放大 + 单张重试）
 - [x] 模板库（TemplateLibrary：侧边栏入口 + Teleport 模态框 + 渐变色条 + 调色板预览）
-- [x] 手动导出按钮（slides_done 步骤显示"导出 PPTX"，exported 步骤显示"下载 PPTX"）
+- [x] 手动导出按钮（slides_done 步骤显示导出下拉，支持可编辑/图片两种模式）
 - [x] 工具调用状态卡片（进行中旋转图标 + 完成勾选图标 + 描述文本）
 - [x] 空状态欢迎屏（品牌图标 + 推荐提示词 chips）
 - [x] 响应式设计
@@ -530,10 +554,10 @@ web/
 **选择**：每张幻灯片生成完整 HTML 文件。
 **原因**：HTML 生态最成熟，CSS 布局灵活，字体支持好，Playwright 渲染稳定。
 
-### 9.6 截图嵌入而非原生 PPTX 对象
+### 9.6 双模式导出：可编辑 + 图片
 
-**选择**：HTML → PNG 截图 → 作为背景嵌入 PPTX。
-**原因**：python-pptx 原生形状能力有限，无法还原复杂 CSS 布局。截图保证像素级还原。
+**选择**：新增前端可编辑 PPTX 导出（dom-to-pptx bundle），保留后端图片导出作为备选。
+**原因**：图片导出保证像素级还原但不可编辑，可编辑导出牺牲部分视觉保真度换取完全可编辑性。两种模式互补，用户根据场景选择。前端方案零服务端依赖、即时导出，dom-to-pptx 是 LandPPT 项目的生产验证方案。
 
 ### 9.7 OpenAI 兼容接口统一多提供商
 
@@ -663,6 +687,19 @@ web/
 - 去重与过滤：域名去重、URL 后缀过滤非 HTML 资源、< 200 字内容标记无效
 - 反爬：隐藏 `navigator.webdriver`、真实 User-Agent 池、随机延迟（0.5-1.5s）
 - 超时控制：Bing 搜索 15s、页面加载 10s，超时跳过
+
+### 9.27 前端 dom-to-pptx 可编辑导出
+
+**选择**：复用 LandPPT 的 `dom-to-pptx.bundle.js`（PptxGenJS + JSZip 封装），纯前端生成可编辑 PPTX。
+**原因**：PptxGenJS 是最成熟的纯前端 PPTX 生成库，dom-to-pptx 在其基础上实现了完整的 DOM→PPTX 映射（文本/表格/图片/形状/图标/字体嵌入）。纯前端方案零服务端依赖、即时导出、无需 Playwright。复用 LandPPT 已生产验证的 bundle，避免重复造轮子。
+
+**关键设计**：
+- Bundle 作为静态资源放在 `web/public/`，动态 `<script>` 注入加载（幂等）
+- 导出时创建离屏 1280×720 iframe，逐页加载 HTML，等待渲染就绪后提取 `document.body`
+- 所有 iframe 保持存活直到 `exportToPptx()` 完成（DOM 遍历需要计算样式可访问）
+- `renderMode: 'dom'` 生成可编辑 PPTX，`renderMode: 'image'` 生成图片 PPTX
+- Speaker notes 从 HTML 注释 `<!-- speaker_notes: ... -->` 中提取
+- 双模式 UI：下拉按钮组，默认"可编辑 PPTX"，可切换到"图片 PPTX"（后端 Playwright 流程）
 
 ---
 
