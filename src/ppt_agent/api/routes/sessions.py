@@ -17,12 +17,17 @@ from ppt_agent.llm import get_model
 from ppt_agent.tools.export import do_export
 from ppt_agent.tools.slide_gen import _generate_one_slide, _is_valid_html
 from ppt_agent.agent.agent import create_ppt_agent
+from ppt_agent.templates.registry import apply_template_to_session
 
 router = APIRouter()
 
 
 class MessageRequest(BaseModel):
     content: str
+
+
+class TemplateRequest(BaseModel):
+    template_key: str
 
 
 @router.post("")
@@ -39,6 +44,22 @@ async def create_session(title: str = ""):
     index.add(SessionEntry(session_id=session_id, created_at=now, title=title))
 
     return {"session_id": session_id, "created_at": now}
+
+
+@router.patch("/{session_id}/template")
+async def set_session_template(session_id: str, body: TemplateRequest):
+    _validate_session(session_id)
+    session_dir = settings.output_dir / session_id
+    try:
+        spec = apply_template_to_session(body.template_key, session_dir)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {
+        "message": f"模板「{spec['name']}」已选择",
+        "template_key": body.template_key,
+        "template_name": spec["name"],
+        "step": "template_done",
+    }
 
 
 @router.get("")
@@ -108,6 +129,15 @@ async def stream_message(
     _validate_session(session_id)
     session_dir = settings.output_dir / session_id
     state = SessionState.load(session_dir / "session.json")
+
+    if state.step.value not in (
+        PipelineStep.TEMPLATE_DONE.value,
+        PipelineStep.RESEARCH_DONE.value,
+        PipelineStep.OUTLINE_DONE.value,
+        PipelineStep.SLIDES_DONE.value,
+        PipelineStep.EXPORTED.value,
+    ):
+        raise HTTPException(status_code=400, detail="请先选择模板")
 
     # Update mode if provided
     if mode in ("fast", "standard"):

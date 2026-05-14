@@ -15,6 +15,7 @@ from ppt_agent.prompts.outline import (
     _materials_section,
     _objective_section,
     _research_section,
+    _template_section,
     _time_hint,
 )
 
@@ -104,6 +105,12 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
     if research_path.exists():
         research = research_path.read_text(encoding="utf-8")
 
+    # Auto-read style_spec.json for template-aware outline
+    style_spec = {}
+    style_spec_path = session_dir / "style_spec.json"
+    if style_spec_path.exists():
+        style_spec = json.loads(style_spec_path.read_text("utf-8"))
+
     model = get_model()
     if page_count > 0:
         page_instruction = f"- 总页数控制在 {page_count} 页左右"
@@ -118,6 +125,7 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
         page_instruction=page_instruction,
         materials_section=_materials_section(materials),
         research_section=_research_section(research),
+        template_section=_template_section(style_spec),
     )
 
     last_raw = ""

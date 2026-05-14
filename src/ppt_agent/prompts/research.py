@@ -166,6 +166,7 @@ RESEARCH_SYNTHESIZE_PROMPT = """你是一个专业的研究分析师。请将以
 {dimension_research}
 {materials_section}
 {time_section}
+{template_hint_section}
 ## 任务
 
 将以上研究笔记综合整理为一份高质量的研究报告。
@@ -289,3 +290,11 @@ def _search_results_section(results: list) -> str:
         parts.append(f"- **{r.title}** ({r.url})\n  {content}")
     joined = "\n\n".join(parts)
     return f"\n## 网络搜索结果\n\n以下是与该研究维度相关的最新网络信息，请优先使用这些事实，引用时注明来源：\n\n{joined}\n"
+
+
+def _template_hint_section(style_spec: dict) -> str:
+    if not style_spec:
+        return ""
+    name = style_spec.get("name", "")
+    desc = style_spec.get("description", "")
+    return f"## 模板风格参考\n\n当前使用「{name}」模板（{desc}）。PPT 映射建议请考虑此模板的视觉特点。\n"

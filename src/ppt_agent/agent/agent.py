@@ -7,17 +7,12 @@ from ppt_agent.llm import get_model
 from ppt_agent.tools.research import research_topic
 from ppt_agent.tools.outline import generate_outline
 from ppt_agent.tools.slide_gen import generate_slides
-from ppt_agent.tools.template import list_templates, select_template
-from ppt_agent.tools.export import export_pptx
 from ppt_agent.tools.upload import upload_and_parse
 
 ALL_TOOLS = [
     research_topic,
     generate_outline,
-    select_template,
-    list_templates,
     generate_slides,
-    export_pptx,
     upload_and_parse,
 ]
 

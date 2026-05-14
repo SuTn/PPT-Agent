@@ -103,11 +103,7 @@ const sessionStore = useSessionStore(props.sessionId);
 const session = computed(() => sessionsStore.current);
 
 const showTemplateSelector = computed(() => {
-  if (sessionStore.pipelineStep !== "idle" || sessionStore.isStreaming) return false;
-  const msgs = sessionStore.messages;
-  const lastAssistant = [...msgs].reverse().find(m => m.role === "assistant");
-  if (!lastAssistant) return false;
-  return /模板选择|选择模板|选择.*模板/.test(lastAssistant.content);
+  return sessionStore.pipelineStep === "idle" && !sessionStore.isStreaming;
 });
 
 const showSlidePreview = computed(() => {
@@ -125,8 +121,13 @@ async function onSend(content: string) {
 }
 
 async function onTemplateSelect(key: string) {
-  await sessionStore.sendMessage(`使用 ${key} 模板`);
-  await sessionsStore.refreshCurrent();
+  try {
+    await client.patch(`/sessions/${props.sessionId}/template`, { template_key: key });
+    sessionStore.pipelineStep = "template_done";
+    await sessionsStore.refreshCurrent();
+  } catch (e) {
+    console.error("Template selection failed:", e);
+  }
 }
 
 function onUploaded(result: string) {

@@ -18,6 +18,7 @@ from ppt_agent.prompts.research import (
     _research_materials_section,
     _research_requirements_section,
     _search_results_section,
+    _template_hint_section,
     _time_section,
 )
 from ppt_agent.search import get_search_provider, cleanup_browser_threads
@@ -163,6 +164,7 @@ async def _step3_synthesize(
     model,
     audience: str = "",
     objective: str = "",
+    style_spec: dict | None = None,
 ) -> str:
     """Synthesize all dimension research into final research_notes.md."""
     prompt = RESEARCH_SYNTHESIZE_PROMPT.format(
@@ -172,6 +174,7 @@ async def _step3_synthesize(
         dimension_research=dimension_research,
         materials_section=_research_materials_section(materials),
         time_section=_time_section(),
+        template_hint_section=_template_hint_section(style_spec or {}),
     )
     result = await model.ainvoke([HumanMessage(content=prompt)])
     return result.content
@@ -192,6 +195,12 @@ async def research_topic(topic: str, requirements: str = "", audience: str = "",
     sem = asyncio.Semaphore(settings.research_concurrency)
 
     materials = await _read_materials(session_dir)
+
+    # Load style_spec for template-aware synthesis
+    style_spec = {}
+    style_spec_path = session_dir / "style_spec.json"
+    if style_spec_path.exists():
+        style_spec = json.loads(style_spec_path.read_text("utf-8"))
 
     # Step 1: analyze topic → dimensions
     dimensions = await _step1_analyze(topic, requirements, materials, audience, objective, model)
@@ -219,7 +228,7 @@ async def research_topic(topic: str, requirements: str = "", audience: str = "",
     dimension_research = "\n\n".join(dimension_research_parts)
 
     # Step 3: synthesize into final research_notes.md
-    research_notes = await _step3_synthesize(topic, materials, dimension_research, model, audience, objective)
+    research_notes = await _step3_synthesize(topic, materials, dimension_research, model, audience, objective, style_spec)
 
     # Persist
     notes_path = session_dir / "research_notes.md"

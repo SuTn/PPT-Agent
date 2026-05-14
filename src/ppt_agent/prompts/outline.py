@@ -16,6 +16,7 @@ OUTLINE_PROMPT = """请根据以下需求生成一个高质量的 PPT 大纲。
 {time_section}
 {research_section}
 {materials_section}
+{template_section}
 
 ## 第一步：判断主题类型 + 规划叙事
 
@@ -261,3 +262,30 @@ def _objective_section(objective: str = "") -> str:
     }
     label = obj_labels.get(objective, objective)
     return f"**演示目标**：{label}\n"
+
+
+def _template_section(style_spec: dict) -> str:
+    if not style_spec:
+        return ""
+    name = style_spec.get("name", "")
+    description = style_spec.get("description", "")
+    component_styles = style_spec.get("component_styles", {})
+    colors = style_spec.get("colors", {})
+
+    lines = ["## 模板风格\n"]
+    lines.append(f"当前已选模板：**{name}** — {description}\n")
+
+    if colors:
+        color_items = [f"{k}: {v}" for k, v in colors.items() if isinstance(v, str) and v.startswith("#")]
+        if color_items:
+            lines.append("配色：" + "、".join(color_items[:5]))
+
+    if component_styles:
+        lines.append("\n各布局风格：")
+        for layout in ("content", "section", "cover"):
+            desc = component_styles.get(layout, "")
+            if desc:
+                lines.append(f"- **{layout}**: {desc}")
+
+    lines.append("\n请根据模板风格选择合适的 visual_hint，确保内容与视觉风格匹配。")
+    return "\n".join(lines) + "\n"

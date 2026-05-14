@@ -11,6 +11,7 @@ from langgraph.types import Command
 from ppt_agent.agent.agent import create_ppt_agent
 from ppt_agent.agent.state import PipelineStep, SessionEntry, SessionIndex, SessionState
 from ppt_agent.config import _current_session_dir, settings
+from ppt_agent.templates.registry import apply_template_to_session
 from ppt_agent.tools.upload import upload_and_parse
 
 
@@ -53,6 +54,12 @@ def _create_new_session() -> str:
         session_id=session_id,
         created_at=now,
     ))
+
+    # Auto-select default template
+    try:
+        apply_template_to_session("simple_business", session_dir)
+    except Exception:
+        pass
 
     return session_id
 

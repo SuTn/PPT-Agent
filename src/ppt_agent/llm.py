@@ -5,6 +5,45 @@ from langchain_openai import ChatOpenAI
 from ppt_agent.config import settings
 
 
+def _patch_reasoning_content():
+    """Monkey-patch langchain_openai to preserve reasoning_content for thinking models.
+
+    ChatOpenAI strips reasoning_content from API responses, but models like
+    MiMo require it to be passed back on subsequent calls (especially after
+    tool use). This patch preserves reasoning_content in AIMessage.additional_kwargs
+    and includes it when converting back to API format.
+    """
+    import langchain_openai.chat_models.base as _base
+
+    _orig_to_msg = _base._convert_dict_to_message
+    _orig_to_dict = _base._convert_message_to_dict
+
+    def _patched_to_msg(_dict):
+        msg = _orig_to_msg(_dict)
+        if (
+            isinstance(msg, _base.AIMessage)
+            and "reasoning_content" in _dict
+            and _dict["reasoning_content"]
+        ):
+            msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+        return msg
+
+    def _patched_to_dict(message, **kwargs):
+        d = _orig_to_dict(message, **kwargs)
+        if (
+            isinstance(message, _base.AIMessage)
+            and "reasoning_content" in message.additional_kwargs
+        ):
+            d["reasoning_content"] = message.additional_kwargs["reasoning_content"]
+        return d
+
+    _base._convert_dict_to_message = _patched_to_msg
+    _base._convert_message_to_dict = _patched_to_dict
+
+
+_patch_reasoning_content()
+
+
 def get_model(model: str | None = None) -> BaseChatModel:
     """Create a chat model instance.
 

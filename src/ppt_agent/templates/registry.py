@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from ppt_agent.agent.state import PipelineStep, SessionState, sync_session_index
+
 TEMPLATES_DIR = Path(__file__).parent
 SKELETONS_DIR = TEMPLATES_DIR / "skeletons"
 
@@ -31,6 +33,29 @@ def list_all_templates() -> list[dict]:
                 },
             })
     return templates
+
+
+def apply_template_to_session(template_key: str, session_dir: Path) -> dict:
+    """Load a template, persist style_spec to session dir, and update session state + index.
+
+    Returns the loaded style_spec dict.
+    Raises ValueError if template_key is invalid.
+    """
+    spec = load_template(template_key)
+
+    spec_path = session_dir / "style_spec.json"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(spec_path, "w", encoding="utf-8") as f:
+        json.dump(spec, f, ensure_ascii=False, indent=2)
+
+    state = SessionState.load(session_dir / "session.json")
+    state.step = PipelineStep.TEMPLATE_DONE
+    state.style_spec_file = str(spec_path)
+    state.template_key = template_key
+    state.save(session_dir / "session.json")
+    sync_session_index(state.session_id, step=state.step.value, template_key=template_key)
+
+    return spec
 
 
 def load_skeleton(layout: str, template_name: str = "") -> str:
