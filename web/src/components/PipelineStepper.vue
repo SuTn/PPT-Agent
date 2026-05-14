@@ -9,6 +9,17 @@
         <span v-else class="step-dot-inner"></span>
       </div>
       <span class="step-label" :class="{ active: isCurrent(step.key) }">{{ step.label }}</span>
+      <span
+        v-if="step.key === 'template_done' && isCompleted(step.key) && template"
+        class="step-template-tag"
+        @click="$emit('changeTemplate')"
+      >
+        <span class="tag-dot" :style="{ background: template.colors.primary }"></span>
+        {{ template.name }}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M7.5 2l.5.5-6 6H1.5v-.5l6-6z" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
       <div v-if="i < steps.length - 1" class="step-line" :class="{ filled: isCompleted(step.key) }"></div>
     </div>
   </div>
@@ -17,6 +28,11 @@
 <script setup lang="ts">
 const props = defineProps<{
   currentStep: string;
+  template?: { key: string; name: string; description: string; colors: Record<string, string> } | null;
+}>();
+
+defineEmits<{
+  changeTemplate: [];
 }>();
 
 const STEP_ORDER = ["idle", "template_done", "research_done", "outline_done", "slides_done", "exported"];
@@ -115,6 +131,32 @@ function nodeClass(key: string): string {
 .step-label.active {
   color: var(--primary);
   font-weight: 600;
+}
+
+.step-template-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.step-template-tag:hover {
+  border-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.tag-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .step-line {

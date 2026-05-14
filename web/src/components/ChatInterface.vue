@@ -3,6 +3,17 @@
     <header class="chat-header">
       <div class="header-left">
         <div v-if="session" class="chat-title">{{ session.title || session.session_id }}</div>
+        <div
+          v-if="currentTemplate && !showTemplateSelector"
+          class="template-badge"
+          @click="showChangeTemplate = true"
+        >
+          <span class="badge-color" :style="{ background: currentTemplate.colors.primary }"></span>
+          <span class="badge-name">{{ currentTemplate.name }}</span>
+          <svg class="badge-icon" width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M9 1.5l1.5 1.5-7 7H2v-1.5l7-7z" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
       </div>
       <div class="header-actions">
         <div
@@ -53,12 +64,11 @@
         </a>
       </div>
     </header>
-    <PipelineStepper :current-step="sessionStore.pipelineStep" />
-    <MessageList :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" :research-notes="sessionStore.researchNotes" :outline="sessionStore.outline" @send="onSend" />
-    <TemplateSelector
-      v-if="showTemplateSelector"
-      @select="onTemplateSelect"
-    />
+    <PipelineStepper :current-step="sessionStore.pipelineStep" :template="currentTemplate" @change-template="showChangeTemplate = true" />
+    <div v-if="showTemplateSelector" class="template-area">
+      <TemplateSelector @select="onTemplateSelect" />
+    </div>
+    <MessageList v-else :messages="sessionStore.messages" :is-streaming="sessionStore.isStreaming" :research-notes="sessionStore.researchNotes" :outline="sessionStore.outline" @send="onSend" />
     <SlidePreview
       v-if="showSlidePreview"
       :session-id="sessionId"
@@ -77,6 +87,17 @@
     <div class="chat-footer" v-if="!showTemplateSelector">
       <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
       <InputBar :disabled="sessionStore.isStreaming" v-model:mode="sessionStore.mode" @send="onSend" />
+    </div>
+
+    <!-- Change template modal -->
+    <div v-if="showChangeTemplate" class="modal-overlay" @click.self="showChangeTemplate = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <span class="modal-title">更换模板</span>
+          <button class="modal-close" @click="showChangeTemplate = false">&times;</button>
+        </div>
+        <TemplateSelector @select="onChangeTemplate" />
+      </div>
     </div>
   </div>
 </template>
@@ -110,9 +131,21 @@ const showSlidePreview = computed(() => {
   return sessionStore.slides.length > 0 || sessionStore.pipelineStep === "slides_done" || sessionStore.pipelineStep === "exported";
 });
 
-onMounted(() => {
-  sessionStore.loadHistory();
+const currentTemplate = ref<{ key: string; name: string; description: string; colors: Record<string, string> } | null>(null);
+const showChangeTemplate = ref(false);
+
+onMounted(async () => {
+  await sessionStore.loadHistory();
   document.addEventListener('click', onClickOutside);
+
+  // Restore current template info from session data
+  const s = sessionsStore.current;
+  if (s?.template_key && sessionStore.pipelineStep !== "idle") {
+    try {
+      const { data } = await client.get("/templates");
+      currentTemplate.value = data.templates?.find((t: any) => t.key === s.template_key) ?? null;
+    } catch { /* ignore */ }
+  }
 });
 
 async function onSend(content: string) {
@@ -120,13 +153,26 @@ async function onSend(content: string) {
   await sessionsStore.refreshCurrent();
 }
 
-async function onTemplateSelect(key: string) {
+async function onTemplateSelect(template: { key: string; name: string; description: string; colors: Record<string, string> }) {
   try {
-    await client.patch(`/sessions/${props.sessionId}/template`, { template_key: key });
+    await client.patch(`/sessions/${props.sessionId}/template`, { template_key: template.key });
+    currentTemplate.value = template;
     sessionStore.pipelineStep = "template_done";
     await sessionsStore.refreshCurrent();
   } catch (e) {
     console.error("Template selection failed:", e);
+  }
+}
+
+async function onChangeTemplate(template: { key: string; name: string; description: string; colors: Record<string, string> }) {
+  try {
+    await client.patch(`/sessions/${props.sessionId}/template`, { template_key: template.key });
+    currentTemplate.value = template;
+    sessionStore.pipelineStep = "template_done";
+    showChangeTemplate.value = false;
+    await sessionsStore.refreshCurrent();
+  } catch (e) {
+    console.error("Template change failed:", e);
   }
 }
 
@@ -209,6 +255,39 @@ async function onSlideSaved(page: number) {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
+}
+
+.template-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+.template-badge:hover {
+  border-color: var(--primary-light);
+  background: var(--card);
+}
+
+.badge-color {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.badge-name {
+  font-weight: 500;
+}
+
+.badge-icon {
+  color: var(--muted);
 }
 
 .btn-export-group {
@@ -321,8 +400,65 @@ async function onSlideSaved(page: number) {
   opacity: 0.9;
 }
 
+.template-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--chat-bg);
+}
+
 .chat-footer {
   border-top: 1px solid var(--border);
   background: var(--card);
+}
+
+/* Change template modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-content {
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 820px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lg);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md) var(--space-xl);
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+.modal-close:hover {
+  color: var(--text);
 }
 </style>
