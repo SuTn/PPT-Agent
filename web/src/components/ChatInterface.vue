@@ -85,8 +85,14 @@
       @saved="onSlideSaved"
     />
     <div class="chat-footer" v-if="!showTemplateSelector">
-      <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
-      <InputBar :disabled="sessionStore.isStreaming" v-model:mode="sessionStore.mode" @send="onSend" />
+      <div v-if="isGenerating" class="generating-hint">
+        <span class="generating-pulse"></span>
+        正在生成幻灯片{{ slidesProgress }}...
+      </div>
+      <template v-else>
+        <FileUpload :session-id="sessionId" @uploaded="onUploaded" />
+        <InputBar :disabled="sessionStore.isStreaming" v-model:mode="sessionStore.mode" @send="onSend" />
+      </template>
     </div>
 
     <!-- Change template modal -->
@@ -128,7 +134,16 @@ const showTemplateSelector = computed(() => {
 });
 
 const showSlidePreview = computed(() => {
-  return sessionStore.slides.length > 0 || sessionStore.pipelineStep === "slides_done" || sessionStore.pipelineStep === "exported";
+  return sessionStore.slides.length > 0 || ["generating_slides", "slides_done", "exported"].includes(sessionStore.pipelineStep);
+});
+
+const isGenerating = computed(() => {
+  return sessionStore.pipelineStep === "generating_slides" && sessionStore.isStreaming;
+});
+
+const slidesProgress = computed(() => {
+  const count = sessionStore.slides.length;
+  return count > 0 ? `（已生成 ${count} 页）` : "";
 });
 
 const currentTemplate = ref<{ key: string; name: string; description: string; colors: Record<string, string> } | null>(null);
@@ -412,6 +427,26 @@ async function onSlideSaved(page: number) {
   border-top: 1px solid var(--border);
   background: var(--card);
 }
+
+.generating-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: var(--space-md) var(--space-lg);
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.generating-pulse {
+  width: 8px;
+  height: 8px;
+  background: var(--primary);
+  border-radius: 50%;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
 
 /* Change template modal */
 .modal-overlay {

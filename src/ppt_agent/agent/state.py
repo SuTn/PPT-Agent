@@ -68,6 +68,7 @@ class PipelineStep(str, Enum):
     TEMPLATE_DONE = "template_done"
     RESEARCH_DONE = "research_done"
     OUTLINE_DONE = "outline_done"
+    GENERATING_SLIDES = "generating_slides"
     SLIDES_DONE = "slides_done"
     EXPORTED = "exported"
 

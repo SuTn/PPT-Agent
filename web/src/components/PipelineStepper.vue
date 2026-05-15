@@ -26,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
+
 const props = defineProps<{
   currentStep: string;
   template?: { key: string; name: string; description: string; colors: Record<string, string> } | null;
@@ -46,16 +48,21 @@ const steps = [
   { key: "exported", label: "导出" },
 ];
 
+// Map generating_slides → slides_done so stepper shows "幻灯片" as current
+const effectiveStep = computed(() =>
+  props.currentStep === "generating_slides" ? "slides_done" : props.currentStep
+);
+
 function stepIndex(key: string): number {
   return STEP_ORDER.indexOf(key);
 }
 
 function isCompleted(key: string): boolean {
-  return stepIndex(key) < stepIndex(props.currentStep);
+  return stepIndex(key) < stepIndex(effectiveStep.value);
 }
 
 function isCurrent(key: string): boolean {
-  return stepIndex(key) === stepIndex(props.currentStep);
+  return stepIndex(key) === stepIndex(effectiveStep.value);
 }
 
 function nodeClass(key: string): string {

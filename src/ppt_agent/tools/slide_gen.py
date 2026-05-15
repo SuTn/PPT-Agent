@@ -271,6 +271,11 @@ async def generate_slides() -> str:
     slides_dir = session_dir / "slides"
     slides_dir.mkdir(parents=True, exist_ok=True)
 
+    state.step = PipelineStep.GENERATING_SLIDES
+    state.slides_dir = str(slides_dir)
+    state.save(session_dir / "session.json")
+    sync_session_index(state.session_id, step=state.step.value)
+
     session_id = session_dir.name
     queue = get_queue(session_id)
 

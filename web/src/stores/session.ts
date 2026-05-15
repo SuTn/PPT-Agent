@@ -51,29 +51,33 @@ function createSessionStore(sessionId: string) {
               return msg;
             });
           // Restore outline from API
-          const outlineSteps = ["outline_done", "template_done", "slides_done", "exported"];
+          const outlineSteps = ["outline_done", "generating_slides", "slides_done", "exported"];
           if (outlineSteps.includes(pipelineStep.value)) {
             try {
               const { data: od } = await client.get(`/sessions/${sessionId}/outline`);
               if (od) outline.value = od;
             } catch { /* no outline */ }
           }
-          // Restore research notes from API if research was done
-          const researchSteps = ["research_done", "outline_done", "template_done", "slides_done", "exported"];
+          // Restore research notes from API
+          const researchSteps = ["research_done", "outline_done", "generating_slides", "slides_done", "exported"];
           if (researchSteps.includes(pipelineStep.value)) {
             try {
               const { data: rd } = await client.get(`/sessions/${sessionId}/research`);
               if (rd?.content) researchNotes.value = rd.content;
             } catch { /* no research notes */ }
           }
-          // Restore slides from API if slides are done
-          const slideSteps = ["slides_done", "exported"];
+          // Restore slides from API if any exist on disk
+          const slideSteps = ["generating_slides", "slides_done", "exported"];
           if (slideSteps.includes(pipelineStep.value)) {
             try {
               const { data: sd } = await client.get(`/sessions/${sessionId}/slides`);
               if (sd?.slides) slides.value = sd.slides;
             } catch { /* no slides */ }
           }
+        }
+        // If agent task is still running, reconnect to its event stream
+        if (pipelineStep.value === "generating_slides") {
+          reconnectStream();
         }
       } catch {
         // session not found or no history yet
@@ -82,12 +86,148 @@ function createSessionStore(sessionId: string) {
       }
     }
 
+    /** Process a single SSE event, updating store state. */
+    function handleEvent(event: SSEEvent, assistantMsg: { value: Message | null }) {
+      if (event.type === "content" && event.content) {
+        if (!assistantMsg.value) {
+          assistantMsg.value = { role: "assistant", content: event.content };
+          messages.value.push(assistantMsg.value);
+        } else {
+          assistantMsg.value.content += event.content;
+        }
+      } else if (event.type === "tool_call") {
+        assistantMsg.value = null;
+        const toolName = event.name!;
+        messages.value.push({
+          role: "assistant",
+          content: "",
+          toolCalls: [{ name: toolName, args: event.args ?? {} }],
+        });
+      } else if (event.type === "tool_result") {
+        const toolName = event.name!;
+        const toolContent = event.content ?? "";
+        messages.value.push({
+          role: "system",
+          content: `[${toolName}] ${toolContent}`,
+          toolResult: true,
+        });
+        if (TOOL_TO_STEP[toolName]) {
+          pipelineStep.value = TOOL_TO_STEP[toolName];
+        }
+        if (toolName === "generate_outline" && toolContent.trim().startsWith("{")) {
+          try {
+            outline.value = JSON.parse(toolContent);
+          } catch {
+            client.get(`/sessions/${sessionId}/outline`).then(({ data }) => {
+              if (data) outline.value = data;
+            }).catch(() => {});
+          }
+        }
+        if (toolName === "research_topic") {
+          client.get(`/sessions/${sessionId}/research`).then(({ data }) => {
+            if (data?.content) researchNotes.value = data.content;
+          }).catch(() => {});
+        }
+        notifyUser(toolName);
+      } else if (event.type === "error") {
+        error.value = event.message ?? "Unknown error";
+      } else if (event.type === "slide_generated") {
+        if (pipelineStep.value !== "slides_done" && pipelineStep.value !== "generating_slides") {
+          pipelineStep.value = "generating_slides";
+        }
+        const slide: SlideInfo = {
+          page: event.page!,
+          layout: event.layout!,
+          filename: event.filename,
+        };
+        const idx = slides.value.findIndex(s => s.page === slide.page);
+        if (idx >= 0) {
+          slides.value[idx] = slide;
+        } else {
+          slides.value.push(slide);
+          slides.value.sort((a, b) => a.page - b.page);
+        }
+      } else if (event.type === "slide_error") {
+        console.warn(`Slide ${event.page} error: ${event.message}`);
+      }
+    }
+
+    /** Read an SSE stream from a fetch Response and process all events. */
+    async function processSSEStream(res: Response) {
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let lastChunk = "";
+      const assistantMsg = { value: null as Message | null };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          lastChunk = buffer;
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed.startsWith("data: ")) continue;
+          const payload = trimmed.slice(6);
+          if (payload === "[DONE]") continue;
+          try {
+            handleEvent(JSON.parse(payload), assistantMsg);
+          } catch { /* malformed JSON */ }
+        }
+      }
+
+      // Flush remaining buffer
+      if (lastChunk) {
+        const trimmed = lastChunk.trim();
+        if (trimmed.startsWith("data: ")) {
+          const payload = trimmed.slice(6);
+          if (payload !== "[DONE]") {
+            try {
+              const event: SSEEvent = JSON.parse(payload);
+              if (event.type === "content" && event.content) {
+                if (!assistantMsg.value) {
+                  assistantMsg.value = { role: "assistant", content: event.content };
+                  messages.value.push(assistantMsg.value);
+                } else {
+                  assistantMsg.value.content += event.content;
+                }
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    }
+
+    /** Reconnect to a running agent task's SSE stream (after page refresh). */
+    async function reconnectStream() {
+      isStreaming.value = true;
+      error.value = null;
+      try {
+        const res = await fetch(`/api/v1/sessions/${sessionId}/events`);
+        if (!res.ok || !res.body) return;
+        await processSSEStream(res);
+      } catch {
+        // Connection failed — task may have finished between loadHistory and reconnect
+      } finally {
+        isStreaming.value = false;
+        // Refresh state after reconnect ends
+        try {
+          const { data } = await client.get(`/sessions/${sessionId}`);
+          if (data.step) pipelineStep.value = data.step;
+        } catch {}
+      }
+    }
+
     async function sendMessage(content: string) {
       messages.value.push({ role: "user", content });
       isStreaming.value = true;
       error.value = null;
-
-      let assistantMsg: Message | null = null;
 
       try {
         const res = await fetch(
@@ -95,125 +235,7 @@ function createSessionStore(sessionId: string) {
         );
 
         if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
-
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-        let lastChunk = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            lastChunk = buffer;
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-
-            const payload = trimmed.slice(6);
-            if (payload === "[DONE]") continue;
-
-            try {
-              const event: SSEEvent = JSON.parse(payload);
-
-              if (event.type === "content" && event.content) {
-                if (!assistantMsg) {
-                  assistantMsg = { role: "assistant", content: event.content };
-                  messages.value.push(assistantMsg);
-                } else {
-                  assistantMsg.content += event.content;
-                }
-              } else if (event.type === "tool_call") {
-                assistantMsg = null;
-                const toolName = event.name!;
-                messages.value.push({
-                  role: "assistant",
-                  content: "",
-                  toolCalls: [{ name: toolName, args: event.args ?? {} }],
-                });
-              } else if (event.type === "tool_result") {
-                const toolName = event.name!;
-                const toolContent = event.content ?? "";
-                messages.value.push({
-                  role: "system",
-                  content: `[${toolName}] ${toolContent}`,
-                  toolResult: true,
-                });
-                // Advance pipeline step on successful tool completion
-                if (TOOL_TO_STEP[toolName]) {
-                  pipelineStep.value = TOOL_TO_STEP[toolName];
-                }
-                // Parse outline from tool result
-                if (toolName === "generate_outline" && toolContent.trim().startsWith("{")) {
-                  try {
-                    outline.value = JSON.parse(toolContent);
-                  } catch {
-                    // Fallback: fetch from API
-                    client.get(`/sessions/${sessionId}/outline`).then(({ data }) => {
-                      if (data) outline.value = data;
-                    }).catch(() => {});
-                  }
-                }
-                // Fetch research notes after research_topic completes
-                if (toolName === "research_topic") {
-                  client.get(`/sessions/${sessionId}/research`).then(({ data }) => {
-                    if (data?.content) researchNotes.value = data.content;
-                  }).catch(() => {});
-                }
-                // Notify user when a tool completes (they may be in another tab)
-                notifyUser(toolName);
-              } else if (event.type === "error") {
-                error.value = event.message ?? "Unknown error";
-              } else if (event.type === "slide_generated") {
-                const slide: SlideInfo = {
-                  page: event.page!,
-                  layout: event.layout!,
-                  filename: event.filename,
-                };
-                // Insert sorted by page
-                const idx = slides.value.findIndex(s => s.page === slide.page);
-                if (idx >= 0) {
-                  slides.value[idx] = slide;
-                } else {
-                  slides.value.push(slide);
-                  slides.value.sort((a, b) => a.page - b.page);
-                }
-              } else if (event.type === "slide_error") {
-                // Slide error — no slide to add, just log
-                console.warn(`Slide ${event.page} error: ${event.message}`);
-              }
-            } catch {
-              // skip malformed JSON
-            }
-          }
-
-          // Flush remaining buffer after stream ends
-          if (lastChunk) {
-            const trimmed = lastChunk.trim();
-            if (trimmed.startsWith("data: ")) {
-              const payload = trimmed.slice(6);
-              if (payload !== "[DONE]") {
-                try {
-                  const event: SSEEvent = JSON.parse(payload);
-                  if (event.type === "content" && event.content) {
-                    if (!assistantMsg) {
-                      assistantMsg = { role: "assistant", content: event.content };
-                      messages.value.push(assistantMsg);
-                    } else {
-                      assistantMsg.content += event.content;
-                    }
-                  }
-                } catch { /* ignore */ }
-              }
-            }
-          }
-        }
+        await processSSEStream(res);
       } catch (e) {
         error.value = e instanceof Error ? e.message : "Request failed";
       } finally {
@@ -233,7 +255,6 @@ function createSessionStore(sessionId: string) {
       const message = TOOL_NOTIFICATIONS[toolName];
       if (!message) return;
 
-      // Browser Notification API
       if ("Notification" in window) {
         if (Notification.permission === "granted") {
           new Notification("PPT-Agent", { body: message });
@@ -244,14 +265,12 @@ function createSessionStore(sessionId: string) {
         }
       }
 
-      // Tab title flash
       if (titleInterval) clearInterval(titleInterval);
       let toggle = false;
       titleInterval = setInterval(() => {
         document.title = toggle ? `🔔 ${message}` : originalTitle;
         toggle = !toggle;
       }, 1000);
-      // Stop flashing after 10 seconds or when user focuses
       setTimeout(() => stopTitleFlash(), 10000);
     }
 
@@ -263,7 +282,6 @@ function createSessionStore(sessionId: string) {
       }
     }
 
-    // Stop flashing when user focuses the tab
     window.addEventListener("focus", stopTitleFlash);
 
     async function refreshSlides() {

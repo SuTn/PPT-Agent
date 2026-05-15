@@ -157,6 +157,20 @@ async def stream_message(
     )
 
 
+@router.get("/{session_id}/events")
+async def stream_events(session_id: str):
+    """Reconnect to a running agent task's event stream (e.g. after page refresh)."""
+    _validate_session(session_id)
+    from ppt_agent.progress import has_queue
+    if not has_queue(session_id):
+        raise HTTPException(status_code=404, detail="No running task for this session")
+    return StreamingResponse(
+        event_stream_generator(None, "", {}, session_id),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.get("/{session_id}/download")
 async def download_pptx(session_id: str):
     _validate_session(session_id)
