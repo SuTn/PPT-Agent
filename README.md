@@ -274,7 +274,7 @@ PPT_AGENT_RENDER_CONCURRENCY=5       # 截图渲染并发数（默认 5）
 
 | 层 | 技术 |
 |----|------|
-| **Agent 框架** | [deepagents](https://github.com/longjiageng/deepagents) + LangGraph |
+| **Agent 框架** | [deepagents](https://github.com/langchain-ai/deepagents) + LangGraph |
 | **LLM 接入** | LangChain (ChatOpenAI / ChatAnthropic) |
 | **后端** | FastAPI, SSE 流式推送 |
 | **前端** | Vue 3, TypeScript, Pinia, Vite |
