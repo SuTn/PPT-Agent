@@ -46,3 +46,5 @@ Thumbs.db
 
 # Temp scripts (not part of source)
 test_tool_calling.py
+DESIGN.md
+CLAUDE.md

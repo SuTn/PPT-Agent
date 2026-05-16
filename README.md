@@ -1,134 +1,294 @@
-# PPT-Agent
+<h1 align="center">PPT-Agent</h1>
 
-通过对话生成 PowerPoint 演示文稿的 AI Agent。LLM 生成 HTML 幻灯片，Playwright 截图后嵌入 PPTX。
+<p align="center">
+  <strong>AI 驱动的 PPT 生成工具</strong><br>
+  通过自然语言对话，自动完成主题研究 → 大纲设计 → 幻灯片制作，一键导出 PPTX
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot-home.png" alt="PPT-Agent 主界面" width="720" />
+</p>
+
+<p align="center">
+  <a href="#快速开始">快速开始</a> · <a href="#示例展示">示例展示</a> · <a href="#功能说明">功能说明</a> · <a href="#配置指南">配置指南</a>
+</p>
+
+---
+
+## 示例展示
+
+### 米哈游投资分析 · 16 页 · sunset 模板 · 快速模式
+
+<p align="center">
+  <img src="examples/mihoyo/slide_01_cover.png" width="240" />
+  <img src="examples/mihoyo/slide_03_section.png" width="240" />
+  <img src="examples/mihoyo/slide_06_content.png" width="240" />
+</p>
+<p align="center">
+  <img src="examples/mihoyo/slide_08_section.png" width="240" />
+  <img src="examples/mihoyo/slide_10_content.png" width="240" />
+  <img src="examples/mihoyo/slide_16_ending.png" width="240" />
+</p>
+
+> PPTX 文件: [examples/](examples/)
+
+### 勒布朗·詹姆斯传奇 · 15 页 · education 模板 · 快速模式
+
+<p align="center">
+  <img src="examples/lebron/slide_01_cover.png" width="240" />
+  <img src="examples/lebron/slide_03_section.png" width="240" />
+  <img src="examples/lebron/slide_07_content.png" width="240" />
+</p>
+<p align="center">
+  <img src="examples/lebron/slide_09_content.png" width="240" />
+  <img src="examples/lebron/slide_10_content.png" width="240" />
+  <img src="examples/lebron/slide_15_ending.png" width="240" />
+</p>
+
+## 功能说明
+
+### 生成流程
+
+```
+用户描述主题 → 确认需求 → [深度研究] → 生成大纲 → 选择模板 → 逐页生成幻灯片 → 预览 → 导出
+```
+
+- **需求确认**: AI 自动整理用户需求（页数、受众、核心信息等），展示后等待确认
+- **深度研究**（可选）: 联网搜索多维度分析主题，生成研究笔记作为大纲素材
+- **大纲生成**: 基于 SCQA 叙事框架，生成含论据层次的结构化大纲
+- **幻灯片生成**: 逐页并发生成 HTML 幻灯片，每完成一页实时推送到前端预览
+- **导出**: 支持 PPTX 下载
+
+### 双模式
+
+| | 快速模式 | 标准模式 |
+|---|---|---|
+| **流程** | 确认需求后自动完成所有步骤 | 每个步骤完成后暂停，等待确认 |
+| **适合场景** | 信任 AI 判断，追求效率 | 需要逐步审核和调整 |
+| **交互次数** | 仅需确认一次 | 研究、大纲各确认一次 |
+
+### 双格式导出
+
+| 格式 | 说明 |
+|------|------|
+| **可编辑 PPTX** | 文本、形状等元素可在 PowerPoint/WPS 中直接编辑 |
+| **图片 PPTX** | 每页作为高清图片嵌入，排版还原度最高 |
+
+### AI 编辑
+
+在幻灯片编辑器中对任意一页进行 AI 交互修改：
+- 打开编辑器 → 点击「AI 编辑」→ 输入修改指令（如"标题改为 XX"、"增加一段数据分析"）
+- AI 生成修改预览，确认后保存
+
+<p align="center">
+  <img src="docs/images/screenshot-ai-edit.png" alt="AI 编辑" width="720" />
+</p>
+
+### 文件导入
+
+上传文档作为素材融入 PPT 生成：
+- 支持格式: docx, xlsx, pdf, 图片等
+- 自动解析为 Markdown，融入大纲生成过程
+- 适合基于已有材料生成 PPT 的场景
+
+### 内置模板
+
+9 套精心设计的模板，覆盖常见场景：
+
+| 模板 | 风格 | 适用场景 |
+|------|------|----------|
+| `simple_business` | 简约商务，蓝白配色 | 商务汇报、方案展示 |
+| `tech_dark` | 科技深色，霓虹色 | 技术分享、产品发布 |
+| `education` | 清新绿色 | 培训课件、教学演示 |
+| `creative` | 渐变 + 不对称布局 | 创意提案、设计展示 |
+| `report` | 灰白 + 图表元素 | 数据报告、年终总结 |
+| `thesis_defense` | 蓝白毛玻璃 | 论文答辩、学术报告 |
+| `sunset` | 暖色调 + 山脉剪影 | 投资分析、品牌故事 |
+| `chinese_ink` | 宣纸纹理 + 水墨装饰 | 国风主题、文化展示 |
+| `cyberpunk` | 网格 + 扫描线 + 霓虹 | 前沿科技、游戏主题 |
+
+<p align="center">
+  <img src="docs/images/screenshot-templates.png" alt="模板预览" width="720" />
+</p>
 
 ## 快速开始
 
-### 1. 安装依赖
+### 环境要求
+
+- Python 3.11+
+- Node.js 18+（Web 界面需要）
+- [uv](https://docs.astral.sh/uv/)（Python 包管理）
+
+### 安装
 
 ```bash
+git clone https://github.com/SuTn/PPT-Agent.git
+cd PPT-Agent
+
+# 安装后端依赖
 uv sync
+
+# 安装浏览器引擎（用于幻灯片截图和可选的网页搜索）
 uv run playwright install chromium
 ```
 
-### 2. 配置 API Key
+### 配置
 
 ```bash
 cp .env.example .env
 ```
 
-编辑 `.env`，至少配置一个提供商：
+编辑 `.env`，至少配置一个 LLM 提供商。详细配置见下方 [配置指南](#配置指南)。
+
+最简配置示例（使用 OpenAI）：
 
 ```env
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-xxx
-PPT_AGENT_MODEL=anthropic:claude-sonnet-4-6
-
-# 或 OpenAI
-OPENAI_API_KEY=sk-xxx
 PPT_AGENT_MODEL=openai:gpt-4o
-
-# 或 OpenRouter（统一接入多模型）
-PPT_AGENT_OPENROUTER_API_KEY=sk-or-xxx
-PPT_AGENT_MODEL=openrouter:google/gemini-2.5-flash
-
-# 或智谱
-PPT_AGENT_ZHIPU_API_KEY=your-key
-PPT_AGENT_MODEL=zhipu:glm-4
-
-# 或 VLLM（自部署）
-PPT_AGENT_VLLM_BASE_URL=http://localhost:8000/v1
-PPT_AGENT_MODEL=vllm:Qwen/Qwen2.5-72B-Instruct
+PPT_AGENT_OPENAI_API_KEY=sk-your-key-here
 ```
 
-### 3. 运行
+### 启动
 
-**CLI 模式**:
-```bash
-uv run ppt-agent
-```
+**Web 界面（推荐）:**
 
-**API 服务器**:
 ```bash
+# 终端 1: 启动后端 API 服务
 uv run ppt-agent-api
-```
 
-然后访问 http://localhost:9999 或启动前端：
-
-```bash
+# 终端 2: 启动前端
 cd web
 npm install
 npm run dev
 ```
 
-前端开发服务器默认运行在 http://localhost:5173。
+打开 http://localhost:5173，选择模板、输入主题即可开始。
 
-## 工作流程
+**CLI 模式:**
 
+```bash
+uv run ppt-agent
 ```
-对话确认主题 → [可选] 上传文件 → [可选] 深度研究 → 生成大纲 → 选择模板 → 逐张并发生成幻灯片 → 实时预览 → 手动导出 PPTX
-```
-
-每步完成后会展示结果，用户确认或提出修改后再继续。页数默认由 LLM 根据内容复杂度自适应决定。幻灯片生成过程中逐张实时预览（iframe 渲染），用户确认满意后手动点击导出。支持单张幻灯片重新生成。
-
-## CLI 命令
 
 | 命令 | 说明 |
 |------|------|
-| `/new` | 新建会话（之前的 PPT 保留在 output/ 中） |
-| `/upload` | 上传文件（docx/xlsx/pdf/图片等，解析为 Markdown 融入大纲） |
+| `/new` | 新建会话 |
+| `/upload` | 上传文件作为素材 |
 | `/quit` | 退出 |
 
-## 支持的 LLM 提供商
+## 配置指南
 
-| 提供商 | model 格式 |
-|--------|-----------|
-| Anthropic | `anthropic:claude-sonnet-4-6` |
-| OpenAI | `openai:gpt-4o` |
-| OpenRouter | `openrouter:google/gemini-2.5-flash` |
-| 智谱 | `zhipu:glm-4` |
-| VLLM | `vllm:model-name` |
+### LLM 提供商
 
-## 预设模板
+PPT-Agent 支持两种 API 接口格式，覆盖所有主流大模型服务商：
 
-- `simple_business` — 简约商务（蓝白配色）
-- `tech_dark` — 科技深色（深蓝黑 + 霓虹色）
-- `education` — 教育培训（清新绿色）
-- `creative` — 创意设计（渐变 + 不对称布局）
-- `report` — 数据报告（灰白 + 图表元素）
-- `thesis_defense` — 简约答辩（蓝白毛玻璃 + 动态光斑）
-- `sunset` — 日落大道（暖色调暗色 + SVG 山脉剪影 + 金色装饰条）
-- `chinese_ink` — 中国风（宣纸纹理 + 水墨装饰 + 篆刻印章）
-- `cyberpunk` — 赛博朋克（网格背景 + 扫描线 + HUD 角标 + 霓虹发光）
+#### OpenAI 兼容接口
 
-每个模板均定义了三级强调样式（high/medium/low），用于视觉层次控制。
+适用于 OpenAI、DeepSeek、通义千问、Moonshot、Ollama、vLLM 等：
 
-## 联网搜索（可选）
+```env
+PPT_AGENT_MODEL=openai:gpt-4o              # 格式: openai:<模型名>
+PPT_AGENT_OPENAI_API_KEY=sk-xxx            # API Key
+PPT_AGENT_OPENAI_BASE_URL=                 # 非官方 OpenAI 需要填写 base_url
+```
 
-配置搜索后，研究阶段会自动为每个维度搜索最新网络信息，提升内容时效性和准确性。
+各服务配置示例：
 
-| 环境变量 | 说明 |
-|--------|------|
-| `PPT_AGENT_SEARCH_PROVIDER` | 搜索提供商：`tavily`（API）、`playwright`（浏览器）。留空则禁用联网搜索。 |
-| `PPT_AGENT_TAVILY_API_KEY` | Tavily API Key（[免费注册](https://tavily.com)），`tavily` 模式必填 |
+```env
+# DeepSeek
+PPT_AGENT_MODEL=openai:deepseek-chat
+PPT_AGENT_OPENAI_API_KEY=sk-xxx
+PPT_AGENT_OPENAI_BASE_URL=https://api.deepseek.com/v1
 
-### 搜索模式对比
+# 通义千问
+PPT_AGENT_MODEL=openai:qwen-plus
+PPT_AGENT_OPENAI_API_KEY=sk-xxx
+PPT_AGENT_OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 
-| | Tavily（API） | Playwright（浏览器） |
-|---|---|---|
-| 配置 | 需要 API Key | 无需 Key |
-| 速度 | 快（<2s） | 较慢（~10-15s） |
-| 内容质量 | API 预处理 | trafilatura 提取正文 |
-| 依赖 | httpx | Playwright（已内置） |
-| 反爬风险 | 无 | 有（Bing 可能拦截） |
+# Moonshot
+PPT_AGENT_MODEL=openai:moonshot-v1-8k
+PPT_AGENT_OPENAI_API_KEY=sk-xxx
+PPT_AGENT_OPENAI_BASE_URL=https://api.moonshot.cn/v1
 
-## 并发配置
+# Ollama（本地部署）
+PPT_AGENT_MODEL=openai:qwen2.5:14b
+PPT_AGENT_OPENAI_API_KEY=ollama            # 任意值即可
+PPT_AGENT_OPENAI_BASE_URL=http://localhost:11434/v1
+```
 
-| 环境变量 | 默认值 | 说明 |
-|--------|--------|------|
-| `PPT_AGENT_RESEARCH_CONCURRENCY` | 3 | 研究维度并发数 |
-| `PPT_AGENT_SLIDE_CONCURRENCY` | 3 | 幻灯片 LLM 并发数 |
-| `PPT_AGENT_RENDER_CONCURRENCY` | 5 | Playwright 截图并发数 |
+#### Anthropic 兼容接口
+
+适用于 Anthropic Claude 及提供 Claude 接口的第三方服务：
+
+```env
+PPT_AGENT_MODEL=anthropic:claude-sonnet-4-6    # 格式: anthropic:<模型名>
+PPT_AGENT_ANTHROPIC_API_KEY=sk-ant-xxx         # API Key
+PPT_AGENT_ANTHROPIC_BASE_URL=                   # 第三方服务填写对应 base_url
+```
+
+### 联网搜索（可选）
+
+配置后，AI 在研究阶段会自动搜索最新网络信息，提升内容时效性。不配置则仅依赖模型自身知识。
+
+```env
+PPT_AGENT_SEARCH_PROVIDER=tavily    # 搜索方式，见下方说明
+```
+
+**方式一: Tavily API（推荐）**
+
+速度快（<2 秒），内容质量高，需要 API Key。
+
+1. 前往 https://tavily.com 免费注册
+2. 获取 API Key
+3. 配置：
+
+```env
+PPT_AGENT_SEARCH_PROVIDER=tavily
+PPT_AGENT_TAVILY_API_KEY=tvly-xxx          # 填入你的 Key
+```
+
+**方式二: Playwright 浏览器搜索**
+
+无需 API Key，通过浏览器直接搜索。速度较慢（~10 秒/次），部分搜索引擎可能会拦截。
+
+```env
+PPT_AGENT_SEARCH_PROVIDER=playwright
+```
+
+**关闭搜索:**
+
+```env
+PPT_AGENT_SEARCH_PROVIDER=                 # 留空或不配置
+```
+
+### 并发配置
+
+幻灯片生成采用并发处理，可通过环境变量调整并发数：
+
+```env
+PPT_AGENT_RESEARCH_CONCURRENCY=3     # 研究维度并发数（默认 3）
+PPT_AGENT_SLIDE_CONCURRENCY=3        # 幻灯片生成并发数（默认 3）
+PPT_AGENT_RENDER_CONCURRENCY=5       # 截图渲染并发数（默认 5）
+```
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| **Agent 框架** | [deepagents](https://github.com/longjiageng/deepagents) + LangGraph |
+| **LLM 接入** | LangChain (ChatOpenAI / ChatAnthropic) |
+| **后端** | FastAPI, SSE 流式推送 |
+| **前端** | Vue 3, TypeScript, Pinia, Vite |
+| **幻灯片渲染** | HTML/CSS → Playwright 截图 → python-pptx |
+| **持久化** | SQLite (对话历史), JSON (会话状态) |
+
+## 路线图
+
+- [ ] 自定义模板 — 导入自己的 PPT 模板，生成时自动适配
+- [ ] 图表生成 — 根据数据自动生成柱状图、饼图等可视化图表
+- [ ] 协作编辑 — 多人同时在线编辑同一份 PPT
+- [ ] PPT 导入 — 上传已有 PPT，AI 分析并优化
+
+欢迎提交 [Issue](https://github.com/SuTn/PPT-Agent/issues) 或 [PR](https://github.com/SuTn/PPT-Agent/pulls) 参与贡献。
 
 ## 测试
 
@@ -136,64 +296,6 @@ npm run dev
 uv run pytest tests/ -v
 ```
 
-## API 接口
+## License
 
-| 端点 | 方法 | 说明 |
-|------|------|------|
-| `/api/v1/sessions` | POST | 创建新会话 |
-| `/api/v1/sessions` | GET | 列出所有会话 |
-| `/api/v1/sessions/{id}` | GET | 获取会话详情（含历史消息） |
-| `/api/v1/sessions/{id}` | DELETE | 删除会话 |
-| `/api/v1/sessions/{id}/messages` | POST | 发送消息（非流式） |
-| `/api/v1/sessions/{id}/stream` | GET | SSE 流式对话（含逐张 slide_generated 事件） |
-| `/api/v1/sessions/{id}/upload` | POST | 上传文件 |
-| `/api/v1/sessions/{id}/export` | POST | 手动导出 PPTX（HTML→PNG→PPTX） |
-| `/api/v1/sessions/{id}/download` | GET | 下载 PPTX |
-| `/api/v1/sessions/{id}/research` | GET | 获取研究笔记 |
-| `/api/v1/sessions/{id}/slides` | GET | 获取幻灯片文件列表 |
-| `/api/v1/sessions/{id}/slides/{filename}` | GET | 获取幻灯片文件（HTML，CSP 安全头） |
-| `/api/v1/sessions/{id}/slides/{page}/retry` | POST | 重新生成单张幻灯片 |
-| `/api/v1/templates` | GET | 获取模板列表 |
-
-## 架构
-
-- **主 Agent**：调度 7 个 async tool，管理对话流程，主动收集受众/核心信息
-- **深度研究**：`research_topic` 对主题进行多维度分析（3 步 LLM 调用），生成 `research_notes.md` 作为大纲生成的素材输入，agent 根据主题复杂度自主决定是否调用
-- **API 层**：FastAPI 实现 SSE 流式对话、会话管理、文件上传、模板查询
-- **前端**：Vue 3 + TypeScript + Vite + Pinia，实时流式展示对话和工具进度，设计系统 + 6 步进度条 + 研究笔记折叠展示 + 大纲结构化展示（含 visual_hint 标签） + 模板库（侧边栏入口） + 模板卡片 + iframe 幻灯片实时预览（逐张流式渲染） + 单张重试 + 手动导出按钮 + 标签栏通知
-- **文档解析**：`upload_and_parse` 通过 markitdown 解析上传文件（docx/xlsx/pdf/图片等），保存为 materials.md 融入大纲生成
-- **内容质量**：SCQA 叙事框架 + Action Title（结论先行）+ SupportingPoint/Evidence 论据层次结构，大纲根据内容复杂度智能决定结构和页数
-- **视觉元素**：visual_hint 支持 table/comparison/timeline/process/chart/quote_highlight，指导内容区域渲染方式
-- **幻灯片一致性**：骨架模板（Skeleton）+ 内容分离架构，页码固定位置、headline 统一样式、CSS reset 全局一致，LLM 仅生成内容区域 HTML
-- **逐张流式渲染**：`asyncio.as_completed()` 逐张生成幻灯片，每完成一张通过 `asyncio.Queue` + SSE 推送 `slide_generated` 事件，前端实时渲染 iframe 预览（CSS transform 缩放缩略图）
-- **手动导出**：Agent 不自动调用 `export_pptx`，用户在界面预览确认后手动点击导出按钮，后端渲染 HTML→PNG→PPTX
-- **单张重试**：`POST /sessions/{id}/slides/{page}/retry` 端点，重试前备份原文件，失败自动恢复
-- **会话隔离**：每次 PPT 生成独立目录，`contextvars` + 中间件传递会话上下文，`SessionIndex` 管理历史
-- **对话持久化**：SQLite 持久化 agent 对话历史，重启后前端可恢复历史会话
-- **容错机制**：`asyncio.gather(return_exceptions=True)` 单页失败不影响整体；HTML 有效性校验；PPTX 嵌入异常跳过
-- **并发生成**：`asyncio.as_completed()` + `Semaphore` 控制幻灯片生成并发，逐张推送进度事件
-- **导出安全**：iframe `sandbox=""` + CSP `default-src 'none'` 阻断 LLM 生成 HTML 中的脚本执行
-- **状态机**：`SessionState` 跟踪流程进度，Pydantic 校验大纲结构
-- **导出管线**：HTML → Playwright 截图(2x) → python-pptx 嵌入
-
-## 输出目录结构
-
-```
-output/
-├── index.json              # 会话索引（所有 PPT 生成记录）
-├── checkpoints.db          # SQLite 对话历史持久化
-├── a1b2c3d4/               # 单个会话目录
-│   ├── session.json        # 会话状态（PipelineStep）
-│   ├── outline.json        # 大纲（NarrativeFramework + SupportingPoint + Evidence 结构）
-│   ├── style_spec.json     # 模板风格规范
-│   ├── materials.md        # 上传材料（Markdown 格式，可选）
-│   ├── research_notes.md   # 研究笔记（多维度深度分析，可选）
-│   ├── slides/             # HTML 幻灯片
-│   │   ├── slide_01_cover.html
-│   │   └── ...
-│   └── {标题}.pptx         # 最终 PPTX
-└── e5f6g7h8/
-    └── ...
-```
-
-详见 [DESIGN.md](DESIGN.md)。
+[MIT](LICENSE)
