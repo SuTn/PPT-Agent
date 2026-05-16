@@ -14,6 +14,7 @@ from ppt_agent.api.deps import get_agent
 from ppt_agent.api.streaming import event_stream_generator
 from ppt_agent.config import _current_session_dir, settings
 from ppt_agent.llm import get_model
+from ppt_agent.prompts.slide import AI_EDIT_SYSTEM_PROMPT
 from ppt_agent.tools.export import do_export
 from ppt_agent.tools.slide_gen import _generate_one_slide, _is_valid_html
 from ppt_agent.agent.agent import create_ppt_agent
@@ -28,6 +29,10 @@ class MessageRequest(BaseModel):
 
 class TemplateRequest(BaseModel):
     template_key: str
+
+
+class AiEditRequest(BaseModel):
+    instruction: str
 
 
 @router.post("")
@@ -337,6 +342,40 @@ async def retry_slide(session_id: str, page: int):
             shutil.copy2(backup, filepath)
             backup.unlink()
         raise HTTPException(status_code=500, detail=f"重新生成失败: {e}")
+
+
+@router.post("/{session_id}/slides/{filename}/ai-edit")
+async def ai_edit_slide(session_id: str, filename: str, body: AiEditRequest):
+    _validate_session(session_id)
+    if not re.match(r"^slide_\d+_[a-z_]+\.html$", filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    session_dir = settings.output_dir / session_id
+    file_path = session_dir / "slides" / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Slide not found")
+
+    current_html = file_path.read_text(encoding="utf-8")
+
+    from langchain_core.messages import SystemMessage, HumanMessage
+
+    model = get_model()
+    messages = [
+        SystemMessage(content=AI_EDIT_SYSTEM_PROMPT),
+        HumanMessage(content=f"当前幻灯片 HTML：\n\n{current_html}\n\n修改指令：{body.instruction}"),
+    ]
+    result = await model.ainvoke(messages)
+    new_html = result.content.strip()
+
+    # Strip markdown code block if present
+    if new_html.startswith("```"):
+        new_html = re.sub(r"^```(?:html)?\n?", "", new_html)
+        new_html = re.sub(r"\n?```$", "", new_html)
+
+    if not new_html or not _is_valid_html(new_html):
+        raise HTTPException(status_code=500, detail="AI 生成的 HTML 无效")
+
+    return {"html": new_html}
 
 
 def _validate_session(session_id: str):

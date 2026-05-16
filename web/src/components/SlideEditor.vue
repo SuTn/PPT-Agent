@@ -30,6 +30,16 @@
         <span v-if="saving" class="spinner" />
         <span v-else>保存</span>
       </button>
+      <div class="toolbar-sep" />
+      <button :class="['toolbar-btn', 'toolbar-btn-ai', { 'ai-active': showAiPanel }]" @click="showAiPanel = !showAiPanel" title="AI 编辑">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M8 1a7 7 0 100 14A7 7 0 008 1z" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M5.5 10.5c.7.8 1.6 1.2 2.5 1.2s1.8-.4 2.5-1.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          <circle cx="5.5" cy="6.5" r="0.8" fill="currentColor"/>
+          <circle cx="10.5" cy="6.5" r="0.8" fill="currentColor"/>
+        </svg>
+        AI 编辑
+      </button>
     </div>
 
     <div class="editor-body">
@@ -66,6 +76,13 @@
           @update="onSourceUpdate"
         />
       </div>
+
+      <SlideAiPanel
+        v-if="showAiPanel && currentSlide.filename"
+        :session-id="sessionId"
+        :filename="currentSlide.filename!"
+        @apply="onAiApply"
+      />
     </div>
   </div>
 </template>
@@ -76,6 +93,7 @@ import type { SlideInfo } from "../api/types";
 import client from "../api/client";
 import VisualEditor from "./VisualEditor.vue";
 import SourceEditor from "./SourceEditor.vue";
+import SlideAiPanel from "./SlideAiPanel.vue";
 
 const props = defineProps<{
   sessionId: string;
@@ -94,6 +112,7 @@ const originalHtml = ref("");
 const editedHtml = ref("");
 const dirty = ref(false);
 const saving = ref(false);
+const showAiPanel = ref(false);
 
 const visualRef = ref<InstanceType<typeof VisualEditor> | null>(null);
 const mainArea = ref<HTMLDivElement | null>(null);
@@ -155,6 +174,11 @@ async function save() {
 function revert() {
   editedHtml.value = originalHtml.value;
   dirty.value = false;
+}
+
+function onAiApply(html: string) {
+  editedHtml.value = html;
+  dirty.value = html !== originalHtml.value;
 }
 
 async function navigateTo(idx: number) {
@@ -280,6 +304,19 @@ watch([mode, editedHtml], async () => {
 }
 .toolbar-btn-ghost {
   color: var(--text-secondary);
+}
+.toolbar-btn.ai-active {
+  background: #eef2ff;
+  color: var(--primary);
+}
+.toolbar-btn-ai {
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+.toolbar-btn-ai:hover {
+  color: var(--primary);
 }
 .toolbar-sep {
   width: 1px;
