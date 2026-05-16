@@ -1,6 +1,5 @@
-from langchain.chat_models import init_chat_model
-from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 
 from ppt_agent.config import settings
 
@@ -44,45 +43,42 @@ def _patch_reasoning_content():
 _patch_reasoning_content()
 
 
-def get_model(model: str | None = None) -> BaseChatModel:
+def get_model(model: str | None = None):
     """Create a chat model instance.
 
     Supported formats:
-      - "anthropic:claude-sonnet-4-6"     (uses ANTHROPIC_API_KEY)
-      - "openai:gpt-4o"                   (uses OPENAI_API_KEY)
-      - "openrouter:google/gemini-2.5-flash" (uses PPT_AGENT_OPENROUTER_API_KEY)
-      - "vllm:Qwen/Qwen2.5-72B-Instruct" (uses PPT_AGENT_VLLM_BASE_URL + VLLM_API_KEY)
-      - "zhipu:glm-4"                     (uses PPT_AGENT_ZHIPU_API_KEY + ZHIPU_BASE_URL)
+      - "openai:<model>"       — OpenAI-compatible (DeepSeek, Qwen, Moonshot, etc.)
+      - "anthropic:<model>"    — Anthropic-compatible (Claude, or third-party endpoints)
+
+    Both providers support custom base_url + api_key via settings.
+
+    Examples:
+      - "openai:gpt-4o"                          → OpenAI
+      - "openai:deepseek-chat"                    → DeepSeek  (set OPENAI_BASE_URL)
+      - "openai:qwen-plus"                        → Qwen      (set OPENAI_BASE_URL)
+      - "anthropic:claude-sonnet-4-6"             → Anthropic
+      - "anthropic:claude-sonnet-4-6"             → Third-party (set ANTHROPIC_BASE_URL)
     """
     model = model or settings.model
 
     provider, _, model_name = model.partition(":")
 
-    if provider == "vllm":
-        if not settings.vllm_base_url:
-            raise ValueError("PPT_AGENT_VLLM_BASE_URL is required for vllm provider")
-        return ChatOpenAI(
-            model=model_name,
-            base_url=settings.vllm_base_url,
-            api_key=settings.vllm_api_key,
-        )
+    if provider == "openai":
+        kwargs = {"model": model_name, "temperature": 0.7}
+        if settings.openai_api_key:
+            kwargs["api_key"] = settings.openai_api_key
+        if settings.openai_base_url:
+            kwargs["base_url"] = settings.openai_base_url
+        return ChatOpenAI(**kwargs)
 
-    if provider == "zhipu":
-        if not settings.zhipu_api_key:
-            raise ValueError("PPT_AGENT_ZHIPU_API_KEY is required for zhipu provider")
-        return ChatOpenAI(
-            model=model_name,
-            base_url=settings.zhipu_base_url,
-            api_key=settings.zhipu_api_key,
-        )
+    if provider == "anthropic":
+        kwargs = {"model": model_name, "temperature": 0.7}
+        if settings.anthropic_api_key:
+            kwargs["api_key"] = settings.anthropic_api_key
+        if settings.anthropic_base_url:
+            kwargs["base_url"] = settings.anthropic_base_url
+        return ChatAnthropic(**kwargs)
 
-    if provider == "openrouter":
-        if not settings.openrouter_api_key:
-            raise ValueError("PPT_AGENT_OPENROUTER_API_KEY is required for openrouter provider")
-        return ChatOpenAI(
-            model=model_name,
-            base_url=settings.openrouter_base_url,
-            api_key=settings.openrouter_api_key,
-        )
-
-    return init_chat_model(model, temperature=0.7)
+    raise ValueError(
+        f"Unknown provider: {provider!r}. Use 'openai:<model>' or 'anthropic:<model>'"
+    )

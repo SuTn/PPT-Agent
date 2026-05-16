@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     model_config = {"env_prefix": "PPT_AGENT_", "env_file": ".env", "extra": "ignore"}
 
-    model: str = "anthropic:claude-sonnet-4-6"
+    model: str = "openai:gpt-4o"
     output_dir: Path = Path("./output")
 
     # Concurrency limits
@@ -15,17 +15,13 @@ class Settings(BaseSettings):
     slide_concurrency: int = 3
     render_concurrency: int = 5
 
-    # VLLM config
-    vllm_base_url: str = ""
-    vllm_api_key: str = "empty"
+    # OpenAI-compatible provider (OpenAI, DeepSeek, Qwen, Moonshot, etc.)
+    openai_api_key: str = ""
+    openai_base_url: str = ""
 
-    # ZhipuAI config (OpenAI-compatible endpoint)
-    zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
-    zhipu_api_key: str = ""
-
-    # OpenRouter config (OpenAI-compatible endpoint)
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_api_key: str = ""
+    # Anthropic-compatible provider (Anthropic, or third-party Claude endpoints)
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = ""
 
     # Web search config
     search_provider: str = ""          # "tavily" | "" (disabled)

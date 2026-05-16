@@ -1,7 +1,14 @@
 {
   "name": "ppt-agent-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Web frontend for PPT-Agent",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuTn/PPT-Agent.git",
+    "directory": "web"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

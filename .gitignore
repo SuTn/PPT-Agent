@@ -41,5 +41,8 @@ raw/
 .DS_Store
 Thumbs.db
 
+# Logs
+*.log
+
 # Temp scripts (not part of source)
 test_tool_calling.py

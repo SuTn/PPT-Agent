@@ -211,10 +211,10 @@ async def list_slides(session_id: str):
 
 @router.get("/{session_id}/slides/{filename}")
 async def get_slide_file(session_id: str, filename: str):
-    session_dir = settings.output_dir / session_id
-    if not session_dir.exists():
-        raise HTTPException(status_code=404, detail="Session not found")
-    file_path = session_dir / "slides" / filename
+    _validate_session(session_id)
+    if not re.match(r"^slide_\d+_[a-z_]+\.html$", filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    file_path = settings.output_dir / session_id / "slides" / filename
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
     return FileResponse(

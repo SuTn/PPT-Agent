@@ -2,10 +2,13 @@
 name = "ppt-agent"
 version = "0.1.0"
 description = "AI-driven PowerPoint generation through conversational interaction"
-requires-python = ">=3.13"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
 dependencies = [
     "deepagents>=0.5.3",
     "fastapi>=0.136.1",
+    "langchain-anthropic>=0.3.0",
     "langchain-openai>=1.2.1",
     "langgraph-checkpoint-sqlite>=2.0.0",
     "markitdown[pdf]>=0.1.1",
@@ -15,8 +18,11 @@ dependencies = [
     "python-multipart>=0.0.20",
     "python-pptx>=1.0.2",
     "uvicorn[standard]>=0.34.0",
-    "zhipuai>=2.1.5.20250825",
 ]
+
+[project.urls]
+Repository = "https://github.com/SuTn/PPT-Agent"
+Issues = "https://github.com/SuTn/PPT-Agent/issues"
 
 [build-system]
 requires = ["setuptools>=75.0"]
