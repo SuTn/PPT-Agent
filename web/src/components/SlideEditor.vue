@@ -192,9 +192,19 @@ function onKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === "s") {
     e.preventDefault();
     save();
+    return;
   }
-  // Escape
-  if (e.key === "Escape") {
+  // Skip keyboard nav when source editor is focused
+  const tag = (e.target as HTMLElement)?.tagName;
+  if (tag === "TEXTAREA" || tag === "INPUT") return;
+
+  if (e.key === "ArrowLeft" && currentIdx.value > 0) {
+    e.preventDefault();
+    navigateTo(currentIdx.value - 1);
+  } else if (e.key === "ArrowRight" && currentIdx.value < props.slides.length - 1) {
+    e.preventDefault();
+    navigateTo(currentIdx.value + 1);
+  } else if (e.key === "Escape") {
     confirmClose();
   }
 }

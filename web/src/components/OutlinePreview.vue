@@ -1,97 +1,108 @@
 <template>
   <div class="outline-preview" v-if="outline">
     <!-- Header -->
-    <div class="outline-header">
-      <div class="outline-icon">
-        <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-          <path d="M2 3h12M2 6h12M2 9h8M2 12h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <div class="op-header">
+      <div class="op-icon-wrap">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <rect x="2" y="2" width="14" height="14" rx="2" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M2 7h14M7 2v14" stroke="currentColor" stroke-width="1.2"/>
         </svg>
       </div>
-      <div class="header-text">
-        <div class="outline-title">{{ outline.title }}</div>
-        <div class="outline-meta">
+      <div class="op-header-text">
+        <div class="op-title">{{ outline.title }}</div>
+        <div class="op-meta">
           {{ outline.slides?.length ?? 0 }} 页
           <template v-if="outline.audience"> · {{ outline.audience }}</template>
           <template v-if="outline.objective"> · {{ objectiveLabel(outline.objective) }}</template>
         </div>
       </div>
-      <button v-if="hasNarrative" class="narrative-btn" @click="showNarrative = !showNarrative">
+      <button v-if="hasNarrative" class="op-narrative-btn" @click="showNarrative = !showNarrative">
         {{ frameworkLabel(outline.narrative.framework) }}
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
-          :style="{ transform: showNarrative ? 'rotate(180deg)' : '' }"
-          style="transition: transform 150ms ease">
-          <path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+          :style="{ transform: showNarrative ? 'rotate(180deg)' : '' }">
+          <path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     </div>
 
     <!-- Narrative (collapsible) -->
-    <div v-if="showNarrative && hasNarrative" class="narrative-section">
-      <div v-if="outline.narrative.situation" class="narrative-row">
-        <span class="ntag nt-s">S</span>
-        <span>{{ outline.narrative.situation }}</span>
+    <Transition name="slide">
+      <div v-if="showNarrative && hasNarrative" class="op-narrative">
+        <div v-if="outline.narrative.situation" class="nar-row">
+          <span class="nar-tag nar-s">S</span>
+          <span class="nar-text">{{ outline.narrative.situation }}</span>
+        </div>
+        <div v-if="outline.narrative.complication" class="nar-row">
+          <span class="nar-tag nar-c">C</span>
+          <span class="nar-text">{{ outline.narrative.complication }}</span>
+        </div>
+        <div v-if="outline.narrative.core_question" class="nar-row">
+          <span class="nar-tag nar-q">Q</span>
+          <span class="nar-text">{{ outline.narrative.core_question }}</span>
+        </div>
+        <div v-if="outline.narrative.core_answer" class="nar-row">
+          <span class="nar-tag nar-a">A</span>
+          <span class="nar-text">{{ outline.narrative.core_answer }}</span>
+        </div>
       </div>
-      <div v-if="outline.narrative.complication" class="narrative-row">
-        <span class="ntag nt-c">C</span>
-        <span>{{ outline.narrative.complication }}</span>
-      </div>
-      <div v-if="outline.narrative.core_question" class="narrative-row">
-        <span class="ntag nt-q">Q</span>
-        <span>{{ outline.narrative.core_question }}</span>
-      </div>
-      <div v-if="outline.narrative.core_answer" class="narrative-row">
-        <span class="ntag nt-a">A</span>
-        <span>{{ outline.narrative.core_answer }}</span>
-      </div>
-    </div>
+    </Transition>
 
-    <!-- Card Grid -->
-    <div class="slide-grid">
+    <!-- Slide flow -->
+    <div class="op-grid">
       <div
         v-for="slide in outline.slides"
         :key="slide.page"
-        class="slide-card"
-        :class="[`card--${slide.layout}`, { 'card--active': selectedPage === slide.page }]"
+        class="op-slide"
+        :class="[`slide--${slide.layout}`, { 'slide--selected': selectedPage === slide.page }]"
         @click="selectSlide(slide.page)"
       >
-        <div class="card-bar" :class="`bar--${slide.section || 'none'}`"></div>
-        <div class="card-content">
-          <div class="card-top">
-            <span class="layout-chip" :class="`lc--${slide.layout}`">{{ layoutLabel(slide.layout) }}</span>
-            <span class="page-num">{{ slide.page }}</span>
+        <div class="slide-accent" :class="`accent--${slide.section || 'none'}`"></div>
+        <div class="slide-inner">
+          <div class="slide-top-row">
+            <span class="slide-type" :class="`type--${slide.layout}`">{{ layoutLabel(slide.layout) }}</span>
+            <span class="slide-page">{{ String(slide.page).padStart(2, '0') }}</span>
           </div>
-          <div class="card-headline">{{ slide.headline }}</div>
+          <div class="slide-headline">{{ slide.headline }}</div>
         </div>
       </div>
     </div>
 
-    <!-- Detail Panel (shown when a card is selected) -->
-    <div v-if="selectedSlide" class="detail-panel">
-      <div class="detail-accent" :class="`bar--${selectedSlide.section || 'none'}`"></div>
-      <div class="detail-inner">
-        <div class="detail-head">
-          <span class="detail-page">第 {{ selectedSlide.page }} 页</span>
-          <span class="layout-chip" :class="`lc--${selectedSlide.layout}`">{{ layoutLabel(selectedSlide.layout) }}</span>
-          <span v-if="selectedSlide.section" class="section-chip" :class="`sc--${selectedSlide.section}`">{{ sectionLabel(selectedSlide.section) }}</span>
-          <span v-if="selectedSlide.visual_hint" class="visual-chip">{{ visualLabel(selectedSlide.visual_hint) }}</span>
-        </div>
-        <div v-if="selectedSlide.body_text" class="detail-body">{{ selectedSlide.body_text }}</div>
-        <div v-if="selectedSlide.supporting_points?.length" class="points-list">
-          <div v-for="(sp, i) in selectedSlide.supporting_points" :key="i" class="pt-item">
-            <div class="pt-dot"></div>
-            <div>
-              <div class="pt-msg">{{ sp.message }}</div>
-              <div v-if="sp.evidence?.length" class="ev-list">
-                <div v-for="(ev, j) in sp.evidence" :key="j" class="ev-item">
-                  <span class="ev-badge" :class="`ev-${ev.evidence_type}`">{{ evidenceIcon(ev.evidence_type) }}</span>
-                  <span>{{ ev.claim }}</span>
+    <!-- Detail drawer -->
+    <Transition name="drawer">
+      <div v-if="selectedSlide" class="op-detail">
+        <div class="detail-bar" :class="`accent--${selectedSlide.section || 'none'}`"></div>
+        <div class="detail-content">
+          <div class="detail-top">
+            <span class="detail-page-label">第 {{ selectedSlide.page }} 页</span>
+            <div class="detail-chips">
+              <span class="dchip dchip-layout" :class="`type--${selectedSlide.layout}`">{{ layoutLabel(selectedSlide.layout) }}</span>
+              <span v-if="selectedSlide.section" class="dchip" :class="`dchip-${selectedSlide.section}`">{{ sectionLabel(selectedSlide.section) }}</span>
+              <span v-if="selectedSlide.visual_hint" class="dchip dchip-visual">{{ visualLabel(selectedSlide.visual_hint) }}</span>
+            </div>
+            <button class="detail-close" @click="selectedPage = null">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div v-if="selectedSlide.body_text" class="detail-body">{{ selectedSlide.body_text }}</div>
+          <div v-if="selectedSlide.supporting_points?.length" class="detail-points">
+            <div v-for="(sp, i) in selectedSlide.supporting_points" :key="i" class="sp-item">
+              <div class="sp-marker"></div>
+              <div class="sp-body">
+                <div class="sp-msg">{{ sp.message }}</div>
+                <div v-if="sp.evidence?.length" class="sp-evidence">
+                  <div v-for="(ev, j) in sp.evidence" :key="j" class="ev-row">
+                    <span class="ev-tag" :class="`ev-${ev.evidence_type}`">{{ evidenceIcon(ev.evidence_type) }}</span>
+                    <span class="ev-text">{{ ev.claim }}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
@@ -120,19 +131,15 @@ function selectSlide(page: number) {
 const LAYOUT_LABELS: Record<string, string> = {
   cover: "封面", toc: "目录", content: "内容", section: "章节", ending: "结尾",
 };
-
 const OBJECTIVE_LABELS: Record<string, string> = {
   persuade: "说服", report: "汇报", educate: "培训", inspire: "激励",
 };
-
 const FRAMEWORK_LABELS: Record<string, string> = {
   scqa: "SCQA 框架", problem_solution: "问题-方案", chronological: "时间线", custom: "自定义",
 };
-
 const SECTION_LABELS: Record<string, string> = {
   situation: "情境", complication: "冲突", core_question: "问题", answer: "答案",
 };
-
 const VISUAL_LABELS: Record<string, string> = {
   table: "表格", comparison: "对比", timeline: "时间线", process: "流程",
   chart: "图表", quote_highlight: "金句",
@@ -156,14 +163,22 @@ function evidenceIcon(t: string): string {
 .outline-preview {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  max-width: 680px;
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-lg);
+  max-width: 720px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(79, 70, 229, 0.04);
   overflow: hidden;
+  transition: box-shadow var(--transition-base);
+}
+.outline-preview:hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 6px 20px rgba(79, 70, 229, 0.07);
 }
 
 /* ── Header ── */
-.outline-header {
+.op-header {
   display: flex;
   align-items: center;
   gap: var(--space-md);
@@ -171,10 +186,10 @@ function evidenceIcon(t: string): string {
   border-bottom: 1px solid var(--border-light);
 }
 
-.outline-icon {
+.op-icon-wrap {
   width: 36px;
   height: 36px;
-  background: #eef2ff;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
   color: var(--primary);
   border-radius: var(--radius-sm);
   display: flex;
@@ -183,12 +198,12 @@ function evidenceIcon(t: string): string {
   flex-shrink: 0;
 }
 
-.header-text {
+.op-header-text {
   flex: 1;
   min-width: 0;
 }
 
-.outline-title {
+.op-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
@@ -197,54 +212,58 @@ function evidenceIcon(t: string): string {
   white-space: nowrap;
 }
 
-.outline-meta {
+.op-meta {
   font-size: 12px;
   color: var(--muted);
   margin-top: 2px;
 }
 
-.narrative-btn {
+.op-narrative-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--text-secondary);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   cursor: pointer;
   transition: all var(--transition-fast);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.narrative-btn:hover {
+.op-narrative-btn:hover {
   background: var(--border-light);
   color: var(--text);
 }
-
-/* ── Narrative ── */
-.narrative-section {
-  padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--border-light);
-  background: #fafbfc;
+.op-narrative-btn svg {
+  transition: transform 150ms ease;
 }
 
-.narrative-row {
+/* ── Narrative ── */
+.op-narrative {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-light);
+  background: linear-gradient(180deg, #fafafe 0%, #f8f9fb 100%);
+}
+
+.nar-row {
   display: flex;
   align-items: flex-start;
   gap: var(--space-sm);
   font-size: 12px;
+  line-height: 1.55;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
-.narrative-row:last-child { margin-bottom: 0; }
+.nar-row:last-child { margin-bottom: 0; }
 
-.ntag {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+.nar-tag {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -253,20 +272,25 @@ function evidenceIcon(t: string): string {
   flex-shrink: 0;
   margin-top: 1px;
 }
-.nt-s { background: #dbeafe; color: #2563eb; }
-.nt-c { background: #fef3c7; color: #92400e; }
-.nt-q { background: #ede9fe; color: #6d28d9; }
-.nt-a { background: #dcfce7; color: #166534; }
+.nar-s { background: #dbeafe; color: #2563eb; }
+.nar-c { background: #fef3c7; color: #92400e; }
+.nar-q { background: #ede9fe; color: #6d28d9; }
+.nar-a { background: #dcfce7; color: #166534; }
 
-/* ── Card Grid ── */
-.slide-grid {
+.nar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Slide grid ── */
+.op-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(145px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   gap: 8px;
   padding: var(--space-lg);
 }
 
-.slide-card {
+.op-slide {
   display: flex;
   background: var(--card);
   border: 1px solid var(--border);
@@ -274,94 +298,96 @@ function evidenceIcon(t: string): string {
   cursor: pointer;
   transition: all var(--transition-fast);
   overflow: hidden;
-  min-height: 72px;
+  min-height: 68px;
+  position: relative;
 }
-.slide-card:hover {
+.op-slide:hover {
   border-color: var(--primary-light);
-  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.1);
 }
-.slide-card.card--active {
+.op-slide.slide--selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 1px var(--primary);
+  box-shadow: 0 0 0 1px var(--primary), 0 2px 8px rgba(79, 70, 229, 0.12);
 }
 
-/* Cover */
-.slide-card.card--cover {
+/* Layout-specific card styles */
+.op-slide.slide--cover {
   background: linear-gradient(135deg, #4f46e5, #7c3aed);
   border-color: transparent;
 }
-.slide-card.card--cover .card-headline,
-.slide-card.card--cover .page-num { color: #fff; }
-.slide-card.card--cover .layout-chip { background: rgba(255,255,255,.2); color: #fff; }
-.slide-card.card--cover .card-bar { background: rgba(255,255,255,.3); }
+.op-slide.slide--cover .slide-headline,
+.op-slide.slide--cover .slide-page { color: #fff; }
+.op-slide.slide--cover .slide-type { background: rgba(255,255,255,.2); color: #fff; }
+.op-slide.slide--cover .slide-accent { background: rgba(255,255,255,.35); }
 
-/* Ending */
-.slide-card.card--ending {
+.op-slide.slide--ending {
   background: linear-gradient(135deg, #10b981, #059669);
   border-color: transparent;
 }
-.slide-card.card--ending .card-headline,
-.slide-card.card--ending .page-num { color: #fff; }
-.slide-card.card--ending .layout-chip { background: rgba(255,255,255,.2); color: #fff; }
-.slide-card.card--ending .card-bar { background: rgba(255,255,255,.3); }
+.op-slide.slide--ending .slide-headline,
+.op-slide.slide--ending .slide-page { color: #fff; }
+.op-slide.slide--ending .slide-type { background: rgba(255,255,255,.2); color: #fff; }
+.op-slide.slide--ending .slide-accent { background: rgba(255,255,255,.35); }
 
-/* Section divider */
-.slide-card.card--section {
+.op-slide.slide--section {
   background: #fffbeb;
   border-color: #fde68a;
 }
 
-/* TOC */
-.slide-card.card--toc {
+.op-slide.slide--toc {
   background: #eff6ff;
   border-color: #bfdbfe;
 }
 
-/* Section accent bar */
-.card-bar {
+/* Accent bar */
+.slide-accent {
   width: 3px;
   flex-shrink: 0;
   background: transparent;
+  border-radius: 0 1px 1px 0;
 }
-.bar--situation { background: #3b82f6; }
-.bar--complication { background: #f59e0b; }
-.bar--answer { background: #10b981; }
-.bar--core_question { background: #8b5cf6; }
+.accent--situation { background: #3b82f6; }
+.accent--complication { background: #f59e0b; }
+.accent--answer { background: #10b981; }
+.accent--core_question { background: #8b5cf6; }
 
 /* Card inner */
-.card-content {
+.slide-inner {
   flex: 1;
   padding: 8px 10px;
   min-width: 0;
 }
 
-.card-top {
+.slide-top-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  margin-bottom: 5px;
 }
 
-.layout-chip {
+.slide-type {
   font-size: 10px;
   font-weight: 600;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: 3px;
   background: var(--border-light);
   color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
-.lc--cover { background: #ede9fe; color: #6d28d9; }
-.lc--toc { background: #dbeafe; color: #2563eb; }
-.lc--section { background: #fef3c7; color: #92400e; }
-.lc--ending { background: #dcfce7; color: #166534; }
+.type--cover { background: #ede9fe; color: #6d28d9; }
+.type--toc { background: #dbeafe; color: #2563eb; }
+.type--section { background: #fef3c7; color: #92400e; }
+.type--ending { background: #dcfce7; color: #166534; }
 
-.page-num {
+.slide-page {
   font-size: 11px;
   color: var(--muted);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
-.card-headline {
+.slide-headline {
   font-size: 12px;
   font-weight: 500;
   color: var(--text);
@@ -372,79 +398,101 @@ function evidenceIcon(t: string): string {
   overflow: hidden;
 }
 
-/* ── Detail Panel ── */
-.detail-panel {
+/* ── Detail drawer ── */
+.op-detail {
   display: flex;
   border-top: 1px solid var(--border-light);
-  background: #fafbfc;
+  background: linear-gradient(180deg, #fafbfc 0%, #f8f9fb 100%);
 }
 
-.detail-accent {
+.detail-bar {
   width: 3px;
   flex-shrink: 0;
 }
 
-.detail-inner {
+.detail-content {
   flex: 1;
   padding: var(--space-md) var(--space-lg);
   min-width: 0;
 }
 
-.detail-head {
+.detail-top {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-sm);
 }
 
-.detail-page {
+.detail-page-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text);
 }
 
-.section-chip {
-  font-size: 10px;
-  font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 3px;
+.detail-chips {
+  display: flex;
+  gap: 4px;
+  flex: 1;
 }
-.sc--situation { background: #dbeafe; color: #2563eb; }
-.sc--complication { background: #fef3c7; color: #92400e; }
-.sc--answer { background: #dcfce7; color: #166534; }
-.sc--core_question { background: #ede9fe; color: #6d28d9; }
 
-.visual-chip {
+.dchip {
   font-size: 10px;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 3px;
-  background: #ede9fe;
-  color: #6d28d9;
+  background: var(--border-light);
+  color: var(--text-secondary);
+}
+.dchip-layout {
+  /* inherits from .slide-type colors */
+}
+.dchip-situation { background: #dbeafe; color: #2563eb; }
+.dchip-complication { background: #fef3c7; color: #92400e; }
+.dchip-answer { background: #dcfce7; color: #166534; }
+.dchip-core_question { background: #ede9fe; color: #6d28d9; }
+.dchip-visual { background: #ede9fe; color: #6d28d9; }
+
+.detail-close {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: var(--border-light);
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.detail-close:hover {
+  background: var(--border);
+  color: var(--text);
 }
 
 .detail-body {
   font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
   margin-bottom: var(--space-sm);
 }
 
 /* Supporting points */
-.points-list {
+.detail-points {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
 }
 
-.pt-item {
+.sp-item {
   display: flex;
   gap: var(--space-sm);
   font-size: 12px;
   line-height: 1.5;
 }
 
-.pt-dot {
+.sp-marker {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -453,38 +501,72 @@ function evidenceIcon(t: string): string {
   flex-shrink: 0;
 }
 
-.pt-msg {
+.sp-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-msg {
   color: var(--text);
   font-weight: 500;
 }
 
-.ev-list {
-  margin-top: 2px;
+.sp-evidence {
+  margin-top: 3px;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
-.ev-item {
+.ev-row {
   display: flex;
   align-items: flex-start;
-  gap: 4px;
+  gap: 5px;
   font-size: 11px;
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
-.ev-badge {
+.ev-tag {
   font-size: 9px;
   font-weight: 600;
-  padding: 0 3px;
+  padding: 1px 4px;
   border-radius: 2px;
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 .ev-data { background: #dbeafe; color: #2563eb; }
 .ev-case_study { background: #fef3c7; color: #92400e; }
 .ev-quote { background: #ede9fe; color: #6d28d9; }
 .ev-analysis { background: #e0e7ff; color: #4338ca; }
 .ev-analogy { background: #fce7f3; color: #9d174d; }
+
+.ev-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Transitions ── */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 200ms ease;
+  overflow: hidden;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: all 200ms ease;
+}
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
 </style>

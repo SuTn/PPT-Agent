@@ -54,25 +54,54 @@
     </div>
     <div v-if="previewSlide" class="preview-overlay" @click.self="previewSlide = null">
       <div class="preview-modal">
-        <button class="preview-edit" @click="$emit('edit', previewSlide); previewSlide = null" title="编辑">
-          <svg width="16" height="16" viewBox="0 0 12 12" fill="none">
-            <path d="M8.5 1.5l2 2-7 7H1.5V8.5l7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <button class="preview-close" @click="previewSlide = null">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <iframe
-          v-if="previewSlide.filename"
-          :key="`preview-${previewSlide.page}-${slideVersions[previewSlide.page] ?? 0}`"
-          :src="slideSrc(previewSlide)"
-          class="preview-iframe"
-          sandbox="allow-same-origin"
-        />
-        <div v-else class="preview-placeholder">
-          <span>第 {{ previewSlide.page }} 页 — {{ previewSlide.layout }}</span>
+        <div class="preview-toolbar">
+          <span class="preview-counter">{{ previewIndex + 1 }} / {{ slides.length }}</span>
+          <div class="preview-toolbar-actions">
+            <button class="preview-btn" @click="$emit('edit', previewSlide); previewSlide = null" title="编辑">
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+                <path d="M8.5 1.5l2 2-7 7H1.5V8.5l7-7z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+              </svg>
+            </button>
+            <button class="preview-btn" @click="previewSlide = null" title="关闭 (Esc)">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M4 4l6 6M10 4l-6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="preview-body">
+          <button
+            v-if="previewIndex > 0"
+            class="nav-btn nav-prev"
+            @click="navigatePreview(-1)"
+            title="上一页 (←)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M12 5l-5 5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="preview-frame">
+            <iframe
+              v-if="previewSlide.filename"
+              :key="`preview-${previewSlide.page}-${slideVersions[previewSlide.page] ?? 0}`"
+              :src="slideSrc(previewSlide)"
+              class="preview-iframe"
+              sandbox="allow-same-origin"
+            />
+            <div v-else class="preview-placeholder">
+              <span>第 {{ previewSlide.page }} 页 — {{ previewSlide.layout }}</span>
+            </div>
+          </div>
+          <button
+            v-if="previewIndex < slides.length - 1"
+            class="nav-btn nav-next"
+            @click="navigatePreview(1)"
+            title="下一页 (→)"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M8 5l5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -80,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from "vue";
+import { ref, reactive, watch, computed, onMounted, onUnmounted } from "vue";
 import type { SlideInfo } from "../api/types";
 import client from "../api/client";
 
@@ -105,6 +134,36 @@ const expanded = ref(true);
 const previewSlide = ref<SlideInfo | null>(null);
 const retryingPage = ref<number | null>(null);
 const slideVersions = reactive<Record<number, number>>({});
+
+const previewIndex = computed(() => {
+  if (!previewSlide.value) return 0;
+  return props.slides.findIndex(s => s.page === previewSlide.value!.page);
+});
+
+function navigatePreview(delta: number) {
+  if (!previewSlide.value) return;
+  const idx = previewIndex.value + delta;
+  if (idx >= 0 && idx < props.slides.length) {
+    previewSlide.value = props.slides[idx];
+  }
+}
+
+function onKeydown(e: KeyboardEvent) {
+  if (!previewSlide.value) return;
+  if (e.key === "ArrowLeft") {
+    e.preventDefault();
+    navigatePreview(-1);
+  } else if (e.key === "ArrowRight") {
+    e.preventDefault();
+    navigatePreview(1);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    previewSlide.value = null;
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onKeydown));
+onUnmounted(() => window.removeEventListener("keydown", onKeydown));
 
 function slideSrc(slide: SlideInfo): string {
   const v = slideVersions[slide.page] ?? 0;
@@ -274,7 +333,7 @@ async function retrySlide(page: number) {
 .preview-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -283,17 +342,66 @@ async function retrySlide(page: number) {
 
 .preview-modal {
   position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
+  max-width: 94vw;
 }
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 0 4px;
+}
+
+.preview-counter {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-toolbar-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.preview-btn {
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.12);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.8);
+  transition: all var(--transition-fast);
+}
+.preview-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+.preview-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preview-frame {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
 .preview-iframe {
   width: 1280px;
   height: 720px;
-  max-width: 90vw;
+  max-width: min(90vw, calc(94vw - 96px));
   max-height: 85vh;
   border: none;
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  display: block;
 }
 .preview-placeholder {
   width: 640px;
@@ -303,42 +411,25 @@ async function retrySlide(page: number) {
   align-items: center;
   justify-content: center;
   color: var(--muted);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
 }
 
-.preview-close {
-  position: absolute;
-  top: -32px;
-  right: 0;
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.9);
+.nav-btn {
+  width: 40px;
+  height: 40px;
+  background: rgba(255, 255, 255, 0.12);
   border: none;
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text);
+  color: rgba(255, 255, 255, 0.85);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
-.preview-edit {
-  position: absolute;
-  top: -32px;
-  right: 36px;
-  width: 28px;
-  height: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text);
-}
-.preview-edit:hover {
-  background: var(--primary);
-  color: white;
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  transform: scale(1.08);
 }
 </style>

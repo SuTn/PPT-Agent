@@ -219,7 +219,7 @@ watch([() => props.messages, () => props.isStreaming], () => {
   justify-content: flex-start;
 }
 .message--system {
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 .message-bubble {
