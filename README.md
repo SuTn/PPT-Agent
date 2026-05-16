@@ -18,7 +18,9 @@
 ## 示例展示
 
 ### 米哈游投资分析 · 16 页 · sunset 模板 · 快速模式
-
+<p align="center">
+  <img src="docs/images/mihayou.png" alt="AI 编辑" width="720" />
+</p>
 <p align="center">
   <img src="examples/mihoyo/slide_01_cover.png" width="240" />
   <img src="examples/mihoyo/slide_03_section.png" width="240" />
@@ -33,7 +35,9 @@
 > PPTX 文件: [examples/](examples/)
 
 ### 勒布朗·詹姆斯传奇 · 15 页 · education 模板 · 快速模式
-
+<p align="center">
+  <img src="docs/images/lebolang.png" alt="AI 编辑" width="720" />
+</p>
 <p align="center">
   <img src="examples/lebron/slide_01_cover.png" width="240" />
   <img src="examples/lebron/slide_03_section.png" width="240" />
