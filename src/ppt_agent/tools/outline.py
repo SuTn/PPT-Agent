@@ -84,6 +84,9 @@ async def generate_outline(requirements: str, page_count: int = 0, materials: st
     在用户确认了演示主题和需求后调用此工具。生成结构化的大纲 JSON，
     包含叙事框架、Action Title、支撑论据和证据。
 
+    会自动读取当前会话目录下的 research_notes.md（研究笔记）和 materials.md（上传材料），
+    无需手动传入文件内容，也不用通过 read_file 等工具读取。
+
     Args:
         requirements: 用户的演示需求描述，包含主题、关键内容等。
         page_count: 期望的幻灯片页数。0 表示根据内容复杂度自行决定（默认）。

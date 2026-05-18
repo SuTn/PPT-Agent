@@ -149,9 +149,12 @@ async def stream_message(
         state.mode = mode
         state.save(session_dir / "session.json")
 
-    # Create agent with mode-specific prompt
+    # Create agent with mode-specific prompt and session context
     checkpointer = request.app.state.checkpointer
-    effective_agent = create_ppt_agent(checkpointer, mode=state.mode or "fast")
+    session_context = _build_session_context(session_dir, state)
+    effective_agent = create_ppt_agent(
+        checkpointer, mode=state.mode or "fast", session_context=session_context
+    )
 
     config = {"configurable": {"thread_id": session_id}}
 
@@ -382,6 +385,35 @@ def _validate_session(session_id: str):
     session_dir = settings.output_dir / session_id
     if not session_dir.exists():
         raise HTTPException(status_code=404, detail="Session not found")
+
+
+def _build_session_context(session_dir, state: SessionState) -> str:
+    lines = ["## 当前会话状态"]
+    lines.append(f"- 步骤：{state.step.value}")
+    if state.template_key:
+        lines.append(f"- 模板：{state.template_key}")
+    lines.append(f"- 模式：{state.mode}")
+
+    materials_path = session_dir / "materials.md"
+    if materials_path.exists():
+        size = materials_path.stat().st_size
+        preview = materials_path.read_text(encoding="utf-8")[:500].strip()
+        lines.append(f"- 上传材料：已有 /materials.md（{size // 1024}KB）")
+        lines.append(f"  内容预览：{preview}...")
+    else:
+        lines.append("- 上传材料：无")
+
+    lines.append(f"- 研究笔记：{'已有' if (session_dir / 'research_notes.md').exists() else '未生成'}")
+    lines.append(f"- 大纲：{'已有' if (session_dir / 'outline.json').exists() else '未生成'}")
+
+    slides_dir = session_dir / "slides"
+    if slides_dir.exists():
+        slide_count = len(list(slides_dir.glob("*.html")))
+        lines.append(f"- 幻灯片：已生成 {slide_count} 页")
+    else:
+        lines.append("- 幻灯片：未生成")
+
+    return "\n".join(lines)
 
 
 def _msg_to_dict(msg):

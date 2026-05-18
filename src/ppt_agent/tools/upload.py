@@ -50,4 +50,9 @@ def upload_and_parse(file_path: str) -> str:
     materials_path.write_text(content, encoding="utf-8")
 
     preview = content[:300].replace("\n", " ")
-    return f"已解析: {path.name}（{size / 1024:.1f}KB）\n内容预览: {preview}..."
+    return (
+        f"已解析: {path.name}（{size / 1024:.1f}KB），内容已保存到 materials.md。\n"
+        f"research_topic 和 generate_outline 工具会自动加载 materials.md，"
+        f"无需手动读取文件，请直接调用工具开始制作PPT。\n"
+        f"内容预览: {preview}..."
+    )

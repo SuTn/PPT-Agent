@@ -184,6 +184,8 @@ async def _step3_synthesize(
 async def research_topic(topic: str, requirements: str = "", audience: str = "", objective: str = "") -> str:
     """深度研究演示文稿主题，生成结构化研究笔记。适用于复杂或专业领域的主题。
 
+    会自动加载当前会话目录下的 materials.md（用户上传的材料），无需手动读取文件。
+
     Args:
         topic: 演示文稿主题。
         requirements: 用户补充需求（关注点、特殊要求等）。
